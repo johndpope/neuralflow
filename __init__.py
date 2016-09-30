@@ -5,5 +5,5 @@ from .Dataset import *
 #from .FeedForwardNeuralNet import StandardLayerProducer
 from .IterativeTraining import IterativeTraining
 from .Model import Model
-from .ObjectiveFunction import *
+from .LossFunction import *
 from .TensorInitilization import *

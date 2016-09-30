@@ -1,40 +1,21 @@
 from typing import List
 
 import tensorflow as tf
+from neuralflow.OptimizationProblem import OptimizationProblem
 from neuralflow.StoppingCriterion import StoppingCriterion
-from neuralflow import BatchProducer
-from neuralflow import Model
-from neuralflow import ObjectiveFunction
-from neuralflow import ValidationProducer
+
 
 from .Monitor import Monitor
 
 
 class IterativeTraining(object):
-    def __init__(self, max_it: int, batch_size: int, model: Model, batch_producer: BatchProducer,
-                 validation_producer: ValidationProducer, optimizer,
-                 obj_fnc: ObjectiveFunction):
+    def __init__(self, max_it: int, optimizer, problem: OptimizationProblem):
         self.__max_it = max_it
-        self.__batch_size = batch_size
         self.__optimizer = optimizer
-        self.__batch_producer = batch_producer
-        self.__validation_producer = validation_producer
-        self.__model = model
-        self.__obj_fnc = obj_fnc
-
-        self.__t = tf.placeholder(tf.float32, shape=[None, self.__model.n_out], name="labels")  # labels
-        self.__loss = self.__obj_fnc.value(y=self.__model.output, t=self.__t)  # loss
+        self.__problem = problem
 
         self.__monitor_dict = {}
         self.__stopping_criteria = []
-
-    @property
-    def labels(self):
-        return self.__t
-
-    @property
-    def loss(self):
-        return self.__loss
 
     def set_monitors(self, name: str, monitors: List[Monitor], feed_dict: dict, freq: int):
         assert (freq > 0)
@@ -64,7 +45,7 @@ class IterativeTraining(object):
         print("Beginning training...")
 
         # train step
-        train_step = self.__optimizer.minimize(self.__loss)
+        train_step = self.__optimizer.minimize(self.__problem.objective_fnc_value)
 
         sess = tf.InteractiveSession()
         sess.run(tf.initialize_all_variables())
@@ -78,8 +59,7 @@ class IterativeTraining(object):
         while not stop:
             print(i)
 
-            batch = self.__batch_producer.get_batch(batch_size=self.__batch_size)
-            train_dict = {self.__model.input: batch["input"], self.__t: batch["output"]}
+            train_dict = self.__problem.get_feed_dict()
             train_step.run(feed_dict=train_dict)
 
             for f in self.__monitor_dict.keys():

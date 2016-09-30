@@ -1,6 +1,7 @@
 import numpy
 import tensorflow as tf
 import numpy as np
+from neuralflow.OptimizationProblem import SupervisedOptimizationProblem
 from neuralflow.CustomOptimizer import CustomOptimizer
 from neuralflow.StoppingCriterion import ThresholdCriterion
 from neuralflow.FeedForwardNeuralNet import FeedForwardNeuralNet
@@ -88,25 +89,23 @@ net = FeedForwardNeuralNet(n_in=n_in, layer_producers=[hidden_layer_prod, hidden
 batch_producer = dataset
 validation_producer = batch_producer
 # objective function
-obj_fnc = CrossEntropy(single_output=False)
+loss_fnc = CrossEntropy(single_output=False)
 
+problem = SupervisedOptimizationProblem(model=net, loss_fnc=loss_fnc, batch_producer=batch_producer, batch_size=100)
 # optimizer
-optimizer = CustomOptimizer(0.001)
+optimizer = CustomOptimizer(0.01)
 
 # training
-training = IterativeTraining(batch_size=100, obj_fnc=obj_fnc, model=net, batch_producer=batch_producer,
-                             validation_producer=validation_producer, max_it=10**6,
-                             optimizer=optimizer)
+training = IterativeTraining(problem=problem, max_it=10 ** 6, optimizer=optimizer)
 
-#roc_monitor = RocMonitor(prediction=net.output, labels=training.labels)
-loss_monitor = ScalarMonitor(name="loss", variable=training.loss)
+# roc_monitor = RocMonitor(prediction=net.output, labels=training.labels)
+loss_monitor = ScalarMonitor(name="loss", variable=problem.objective_fnc_value)
 
 stopping_criterion = ThresholdCriterion(monitor=loss_monitor, thr=0.2, direction='<')
 
-
 validation_batch = validation_producer.get_validation()
 training.set_monitors(monitors=[loss_monitor], freq=100, name="validation",
-                      feed_dict={net.input: validation_batch["input"], training.labels: validation_batch["output"]})
+                      feed_dict={net.input: validation_batch["input"], problem.labels: validation_batch["output"]})
 
 training.set_stopping_criterion([stopping_criterion])
 

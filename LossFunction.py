@@ -2,8 +2,7 @@ import abc
 
 import tensorflow as tf
 
-
-class ObjectiveFunction(object):
+class LossFunction:
     __metaclass__ = abc.ABCMeta
 
     @abc.abstractmethod
@@ -11,7 +10,7 @@ class ObjectiveFunction(object):
         """returns the (symbolic) value of the objective function given a value 'y' and the targets 't'"""
 
 
-class CrossEntropy(ObjectiveFunction):
+class CrossEntropy(LossFunction):
     def __init__(self, single_output: bool = False):
         self.__single_output = single_output
 
