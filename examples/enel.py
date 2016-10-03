@@ -10,51 +10,55 @@ from neuralflow.neuralnets.FeedForwardNeuralNet import StandardLayerProducer
 from neuralflow.optimization.CustomOptimizer import CustomOptimizer
 from neuralflow.optimization.Monitor import ScalarMonitor
 from neuralflow.optimization.StoppingCriterion import ThresholdCriterion
-from neuralflow.neuralnets.ActivationFunction import SoftmaxActivationFunction
+from neuralflow.neuralnets.ActivationFunction import SoftmaxActivationFunction, IdentityFunction
 from neuralflow.neuralnets.ActivationFunction import TanhActivationFunction
-from neuralflow.neuralnets.LossFunction import CrossEntropy
+from neuralflow.neuralnets.LossFunction import CrossEntropy, SquaredError, MAE
 from neuralflow.optimization.IterativeTraining import IterativeTraining
 from neuralflow.optimization.SupervisedOptimizationProblem import SupervisedOptimizationProblem
+from scipy.io import loadmat
 from sklearn import preprocessing
 from sklearn.preprocessing import OneHotEncoder
 
 
-class IrisDataset(BatchProducer, ValidationProducer):
-    def __init__(self, csv_path: str, seed: int):
-        training_set = tf.contrib.learn.datasets.base.load_csv(filename=csv_path + "iris_training.csv",
-                                                               target_dtype=np.int)
-        test_set = tf.contrib.learn.datasets.base.load_csv(filename=csv_path + "iris_test.csv", target_dtype=np.int)
+class EnelDataset(BatchProducer, ValidationProducer):
+    def __init__(self, mat_file: str, seed: int):
+        mat_obj = loadmat(mat_file)
 
-        x_train, x_test, y_train, y_test = training_set.data, test_set.data, \
-                                           training_set.target, test_set.target
+        x_train = mat_obj['X_train']
+        x_validation = mat_obj['X_validation']
+        x_test = mat_obj['X_test']
+
+        self.__y_train = mat_obj['Y_train']
+        y_validation = mat_obj['Y_validation']
+        y_test = mat_obj['Y_test']
 
         scaler = preprocessing.StandardScaler().fit(x_train)
-        x_test = scaler.transform(x_test)
-        x_train = scaler.transform(x_train)
+        self.__x_test = scaler.transform(x_test)
+        self.__x_train = scaler.transform(x_train)
+        self.__x_validation = scaler.transform(x_validation)
 
-        enc = OneHotEncoder(sparse=False)
-        y_train = enc.fit_transform(numpy.reshape(y_train, (y_train.shape[0], 1)))
-        y_test = enc.transform(numpy.reshape(y_test, (y_test.shape[0], 1)))
-
-        n = x_train.shape[0]
-        n_val = int(0.3 * n)
-
-        self.__validation_batch = {
-            'output': y_train[(n - n_val):],
-            'input': x_train[(n - n_val):, :]
+        self.__validation_batch = {  # TODO rimetti validation
+            'output': y_validation,
+            'input': x_validation
         }
-        self.__x_train = x_train[0:(n - n_val), :]
-        self.__y_train = y_train[0:(n - n_val)]
 
         self.__test_batch = {
             'output': y_test,
             'input': x_test
         }
 
+        self.__train_batch = {
+            'output': self.__y_train,
+            'input': self.__x_train
+        }
+
         self.__rnd = np.random.RandomState(seed)
 
     def get_validation(self):
         return self.__validation_batch
+
+    def get_train(self):
+        return self.__train_batch
 
     def get_test(self):
         return self.__test_batch
@@ -71,8 +75,7 @@ class IrisDataset(BatchProducer, ValidationProducer):
 
 
 # Data sets
-csv_path = "examples/"
-dataset = IrisDataset(csv_path=csv_path, seed=12)
+dataset = EnelDataset(mat_file="/home/giulio/SUD.mat", seed=12)
 
 # train
 example = dataset.get_batch(1)
@@ -80,20 +83,25 @@ n_in, n_out = example["input"].shape[1], example["output"].shape[1]
 
 seed = 13
 
-hidden_layer_prod = StandardLayerProducer(n_units=50, initialization=GaussianInitialization(mean=0, std_dev=0.1),
-                                          activation_fnc=TanhActivationFunction())
+hidden_layer_prod_1 = StandardLayerProducer(n_units=5000, initialization=GaussianInitialization(mean=0, std_dev=0.1),
+                                            activation_fnc=TanhActivationFunction())
+
+hidden_layer_prod_2 = StandardLayerProducer(n_units=300, initialization=GaussianInitialization(mean=0, std_dev=0.1),
+                                            activation_fnc=TanhActivationFunction())
 output_layer_prod = StandardLayerProducer(n_units=n_out, initialization=GaussianInitialization(mean=0, std_dev=0.1),
-                                          activation_fnc=SoftmaxActivationFunction(single_output=True))
-net = FeedForwardNeuralNet(n_in=n_in, layer_producers=[hidden_layer_prod, hidden_layer_prod, output_layer_prod])
+                                          activation_fnc=IdentityFunction())
+net = FeedForwardNeuralNet(n_in=n_in, layer_producers=[hidden_layer_prod_1, hidden_layer_prod_1, output_layer_prod])
+
+print("n_in:{}, n_out:{}".format(n_in, n_out))
 
 batch_producer = dataset
 validation_producer = batch_producer
 # objective function
-loss_fnc = CrossEntropy(single_output=False)
+loss_fnc = MAE()
 
-problem = SupervisedOptimizationProblem(model=net, loss_fnc=loss_fnc, batch_producer=batch_producer, batch_size=100)
+problem = SupervisedOptimizationProblem(model=net, loss_fnc=loss_fnc, batch_producer=batch_producer, batch_size=20)
 # optimizer
-optimizer = CustomOptimizer(0.01)
+optimizer = CustomOptimizer(0.7)
 
 # training
 training = IterativeTraining(problem=problem, max_it=10 ** 6, optimizer=optimizer)
@@ -101,12 +109,23 @@ training = IterativeTraining(problem=problem, max_it=10 ** 6, optimizer=optimize
 # roc_monitor = RocMonitor(prediction=net.output, labels=training.labels)
 loss_monitor = ScalarMonitor(name="loss", variable=problem.objective_fnc_value)
 
+mae_loss = MAE()
+mae = mae_loss.value(net.output, problem.labels)
+mae_monitor = ScalarMonitor(name="mae", variable=mae)
+
 stopping_criterion = ThresholdCriterion(monitor=loss_monitor, thr=0.2, direction='<')
 
 validation_batch = validation_producer.get_validation()
 training.add_monitors(monitors=[loss_monitor], freq=100, name="validation",
                       feed_dict={net.input: validation_batch["input"], problem.labels: validation_batch["output"]})
 
+train_batch = dataset.get_train()
+training.add_monitors(monitors=[mae_monitor], freq=100, name="train",
+                      feed_dict={net.input: train_batch["input"], problem.labels: train_batch["output"]})
+
+test_batch = dataset.get_test()
+training.add_monitors(monitors=[mae_monitor], freq=100, name="test",
+                      feed_dict={net.input: test_batch["input"], problem.labels: test_batch["output"]})
 training.set_stopping_criterion([stopping_criterion])
 
 training.train()

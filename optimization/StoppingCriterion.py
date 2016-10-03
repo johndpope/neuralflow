@@ -1,6 +1,6 @@
 import abc
 
-from neuralflow.Monitor import Monitor
+from neuralflow.optimization.Monitor import Monitor
 
 
 class StoppingCriterion(object):

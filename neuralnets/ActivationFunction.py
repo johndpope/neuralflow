@@ -16,7 +16,7 @@ class TanhActivationFunction(ActivationFunction):
         return tf.tanh(x)
 
 
-class ZeroActivationFunction(ActivationFunction):
+class IdentityFunction(ActivationFunction):
     def apply(self, x: tf.Tensor):
         return x
 

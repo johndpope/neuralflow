@@ -3,10 +3,10 @@ from typing import List
 
 import numpy as np
 import tensorflow as tf
-from neuralflow import Model
+from neuralflow.neuralnets.ActivationFunction import ActivationFunction, IdentityFunction, TanhActivationFunction
 
-from .ActivationFunction import ActivationFunction, ZeroActivationFunction, TanhActivationFunction
-from .TensorInitilization import TensorInitialization, GaussianInitialization
+from neuralflow.TensorInitilization import TensorInitialization, GaussianInitialization
+from neuralflow.optimization.Model import Model
 
 
 class Layer(object):
@@ -94,7 +94,7 @@ if __name__ == '__main__':
     hidden_layer_prod = StandardLayerProducer(n_units=50, initialization=GaussianInitialization(mean=0, std_dev=0.1),
                                               activation_fnc=TanhActivationFunction())
     output_layer_prod = StandardLayerProducer(n_units=1, initialization=GaussianInitialization(mean=0, std_dev=0.1),
-                                              activation_fnc=ZeroActivationFunction())
+                                              activation_fnc=IdentityFunction())
     net = FeedForwardNeuralNet(n_in=2, layer_producers=[hidden_layer_prod, hidden_layer_prod, output_layer_prod])
     sess = tf.InteractiveSession()
     sess.run(tf.initialize_all_variables())

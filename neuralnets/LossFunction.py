@@ -2,6 +2,7 @@ import abc
 
 import tensorflow as tf
 
+
 class LossFunction:
     __metaclass__ = abc.ABCMeta
 
@@ -19,4 +20,18 @@ class CrossEntropy(LossFunction):
             c = -(t * tf.log(y + 1e-10) + (1 - t) * tf.log((1 - y) + 1e-10))
         else:
             c = -tf.reduce_sum(t * tf.log(y), reduction_indices=[1])
+        return tf.reduce_mean(c)
+
+
+class SquaredError(LossFunction):
+
+    def value(self, y, t):
+        c = tf.reduce_mean((y - t) ** 2, reduction_indices=[1])
+        return tf.reduce_mean(c)
+
+
+class MAE(LossFunction):
+
+    def value(self, y, t):
+        c = tf.reduce_mean(tf.abs(y - t), reduction_indices=[1])
         return tf.reduce_mean(c)
