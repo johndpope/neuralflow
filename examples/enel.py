@@ -83,7 +83,7 @@ n_in, n_out = example["input"].shape[1], example["output"].shape[1]
 
 seed = 13
 
-hidden_layer_prod_1 = StandardLayerProducer(n_units=5000, initialization=GaussianInitialization(mean=0, std_dev=0.1),
+hidden_layer_prod_1 = StandardLayerProducer(n_units=1000, initialization=GaussianInitialization(mean=0, std_dev=0.1),
                                             activation_fnc=TanhActivationFunction())
 
 hidden_layer_prod_2 = StandardLayerProducer(n_units=300, initialization=GaussianInitialization(mean=0, std_dev=0.1),
@@ -101,13 +101,13 @@ loss_fnc = MAE()
 
 problem = SupervisedOptimizationProblem(model=net, loss_fnc=loss_fnc, batch_producer=batch_producer, batch_size=20)
 # optimizer
-optimizer = CustomOptimizer(0.7)
+optimizer = CustomOptimizer(0.2)
 
 # training
 training = IterativeTraining(problem=problem, max_it=10 ** 6, optimizer=optimizer)
 
 # roc_monitor = RocMonitor(prediction=net.output, labels=training.labels)
-loss_monitor = ScalarMonitor(name="loss", variable=problem.objective_fnc_value)
+loss_monitor = ScalarMonitor(name="mae", variable=problem.objective_fnc_value)
 
 mae_loss = MAE()
 mae = mae_loss.value(net.output, problem.labels)

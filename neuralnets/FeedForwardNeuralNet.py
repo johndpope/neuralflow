@@ -18,9 +18,9 @@ class Layer(object):
 
 
 class StandardLayer(Layer):
-    def __init__(self, W, b, activation_fnc: ActivationFunction, float_type, name='prova'):
+    def __init__(self, W, b, activation_fnc: ActivationFunction, float_type, name:str):
         self.__W = tf.Variable(initial_value=W, name=name + '_W', dtype=float_type)
-        self.__b = tf.Variable(initial_value=b, name=name + 'b', dtype=float_type)
+        self.__b = tf.Variable(initial_value=b, name=name + '_b', dtype=float_type)
         self.__n_out = W.shape[1]
         self.__activation_fnc = activation_fnc
 
@@ -36,7 +36,7 @@ class LayerProducer(object):
     __metaclass__ = abc.ABCMeta
 
     @abc.abstractmethod
-    def get_layer(self, n_in: int, float_type):
+    def get_layer(self, n_in: int, float_type, name:str):
         """return a layer which accepts an input of with dimension 'n_in' """
 
 
@@ -46,11 +46,11 @@ class StandardLayerProducer(LayerProducer):
         self.__initialization = initialization
         self.__activation_fnc = activation_fnc
 
-    def get_layer(self, n_in: int, float_type):
+    def get_layer(self, n_in: int, float_type, name:str='Unknown_Layer'):
         W = self.__initialization.get(size=(n_in, self.__n_units))
         # W = np.zeros(shape=(n_in, self.__n_units))
         b = np.zeros(shape=(self.__n_units,))
-        return StandardLayer(W, b, self.__activation_fnc, float_type)
+        return StandardLayer(W, b, self.__activation_fnc, float_type, name)
 
 
 class FeedForwardNeuralNet(Model):
@@ -63,11 +63,14 @@ class FeedForwardNeuralNet(Model):
 
         next_input = self.__x_placeholder
         next_in_dim = self.__n_in
+        name = "Layer_{}"
+        count = 1
         for layer in layer_producers:
-            l = layer.get_layer(n_in=next_in_dim, float_type=self.__float_type)
+            l = layer.get_layer(n_in=next_in_dim, float_type=self.__float_type, name=name.format(count))
             self.__layers.append(l)
             next_input = l.output(next_input)
             next_in_dim = l.n_out
+            count +=1
 
         self.__n_out = next_in_dim  # the number of output units is determined by the last layer
         self.__output = next_input

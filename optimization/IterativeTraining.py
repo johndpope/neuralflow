@@ -16,7 +16,7 @@ class IterativeTraining(object):
         self.__monitor_dict = {}
         self.__stopping_criteria = []
 
-    def add_monitors(self, name: str, monitors: List[Monitor], feed_dict: dict, freq: int):
+    def add_monitors(self, name: str, monitors: List[Monitor], freq: int, feed_dict: dict=None):
         assert (freq > 0)
         self.__monitor_dict[str(freq)+str(name)] = {
             "summary": tf.merge_summary([m.summary for m in monitors], name="merged_summary_" + name),
@@ -46,8 +46,7 @@ class IterativeTraining(object):
         sess = SessionManager.get_session()
         # train step
         train_step = self.__optimizer.minimize(self.__problem.objective_fnc_value)
-        sess.run(tf.initialize_all_variables())
-        sess.run(tf.initialize_local_variables())
+
 
         self.__init_writers(sess)
 
