@@ -16,3 +16,6 @@ class OptimizationProblem(FeedDictionaryProducer):
     @abc.abstractproperty
     def objective_fnc_value(self):
         """"""
+    @abc.abstractproperty
+    def trainables(self):
+        """"""

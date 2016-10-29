@@ -5,10 +5,11 @@ from neuralflow.SessionManager import SessionManager
 from neuralflow.optimization.Monitor import Monitor
 from neuralflow.optimization.OptimizationProblem import OptimizationProblem
 from neuralflow.optimization.StoppingCriterion import StoppingCriterion
+from neuralflow.optimization.Optimizer import Optimizer
 
 
 class IterativeTraining(object):
-    def __init__(self, max_it: int, optimizer, problem: OptimizationProblem):
+    def __init__(self, max_it: int, optimizer: Optimizer, problem: OptimizationProblem):
         self.__max_it = max_it
         self.__optimizer = optimizer
         self.__problem = problem
@@ -16,9 +17,9 @@ class IterativeTraining(object):
         self.__monitor_dict = {}
         self.__stopping_criteria = []
 
-    def add_monitors(self, name: str, monitors: List[Monitor], freq: int, feed_dict: dict=None):
+    def add_monitors(self, name: str, monitors: List[Monitor], freq: int, feed_dict: dict = None):
         assert (freq > 0)
-        self.__monitor_dict[str(freq)+str(name)] = {
+        self.__monitor_dict[str(freq) + str(name)] = {
             "summary": tf.merge_summary([m.summary for m in monitors], name="merged_summary_" + name),
             "feed_dict": feed_dict,
             "freq": freq,
@@ -45,8 +46,7 @@ class IterativeTraining(object):
 
         sess = SessionManager.get_session()
         # train step
-        train_step = self.__optimizer.minimize(self.__problem.objective_fnc_value)
-
+        train_step = self.__optimizer.train_op
 
         self.__init_writers(sess)
 

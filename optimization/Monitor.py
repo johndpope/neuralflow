@@ -54,7 +54,7 @@ class RocMonitor(Monitor):
 
     def __init__(self, prediction, labels):
         self.__auc_score, self.__auc_update_op = tf.contrib.metrics.streaming_auc(predictions=prediction, labels=labels,
-                                                                                  ignore_mask=None, num_thresholds=200,
+                                                                                  num_thresholds=200,
                                                                                   metrics_collections=None,
                                                                                   updates_collections=None,
                                                                                   name="auc_score")

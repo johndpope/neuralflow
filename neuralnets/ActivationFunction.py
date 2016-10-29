@@ -16,18 +16,23 @@ class TanhActivationFunction(ActivationFunction):
         return tf.tanh(x)
 
 
+class ReLUActivationFunction(ActivationFunction):
+    def apply(self, x: tf.Tensor):
+        return tf.nn.relu(x)
+
+
 class IdentityFunction(ActivationFunction):
     def apply(self, x: tf.Tensor):
         return x
 
 
 class SoftmaxActivationFunction(ActivationFunction):
-
     def __init__(self, single_output: bool = False):
         self.__single_output = single_output
 
     def apply(self, x: tf.Tensor):
         if self.__single_output:
-            return tf.reduce_mean(1. / (1. + tf.exp(x)), reduction_indices=0)  # x should be 1-dimensional
+            y = 1. / (1. + tf.exp(x))
+            return tf.reduce_mean((1. + y) / 2, reduction_indices=0)  # x should be 1-dimensional
         else:
             return tf.nn.softmax(x)

@@ -1,8 +1,8 @@
-from neuralflow import BatchProducer
-from neuralflow.optimization.Model import Model
-from neuralflow.optimization.OptimizationProblem import OptimizationProblem
-from neuralflow.neuralnets.LossFunction import LossFunction
 import tensorflow as tf
+from neuralflow.models.Model import Model
+from neuralflow import BatchProducer
+from neuralflow.neuralnets.LossFunction import LossFunction
+from neuralflow.optimization.OptimizationProblem import OptimizationProblem
 
 
 class SupervisedOptimizationProblem(OptimizationProblem):
@@ -29,3 +29,7 @@ class SupervisedOptimizationProblem(OptimizationProblem):
     @property
     def input(self):
         return self.__model.input
+
+    @property
+    def trainables(self):
+        return self.__model.trainables

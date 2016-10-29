@@ -32,6 +32,9 @@ class SquaredError(LossFunction):
 
 class MAE(LossFunction):
 
+    def __init__(self, scale_fnc=lambda x:x):
+        self.__scale_fnc = scale_fnc
+
     def value(self, y, t):
-        c = tf.reduce_mean(tf.abs(y - t), reduction_indices=[1])
+        c = tf.reduce_mean(tf.abs(self.__scale_fnc(y) - self.__scale_fnc(t)), reduction_indices=[1])
         return tf.reduce_mean(c)
