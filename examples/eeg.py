@@ -156,4 +156,31 @@ training.train(sess)
 
 out = sess.run(net.output, feed_dict={net.input: validation_batch["input"]})
 print(out[0:5])
+
+import tensorflow as tf
+#saver = tf.train.Saver([net.output])
+#saver.save(sess, 'my-model')
+
+saver = tf.train.Saver()
+saver.save(sess, "model")
+tf.add_to_collection("net.out", net.output)
+tf.add_to_collection("net.in", net.input)
+
+# Generates MetaGraphDef.
+saver.export_meta_graph('model.meta')
+#meta_graph_def = tf.train.export_meta_graph(filename='./model.meta', collection_list={"net":net})
+
 sess.close()
+
+sess = tf.Session()
+new_saver = tf.train.import_meta_graph('model.meta')
+new_saver.restore(sess, 'model')
+
+net_out = tf.get_collection("net.out")[0]
+net_in = tf.get_collection("net.in")[0]
+
+out = sess.run(net_out, feed_dict={net_in: validation_batch["input"]})
+print(out)
+
+
+
