@@ -61,7 +61,10 @@ class StandardLayerProducer(LayerProducer):
 
 
 class FeedForwardNeuralNet(Model):
-    def __init__(self, input_model: Model, layer_producers: List[LayerProducer], float_type=tf.float32):
+    layer_name_proto = "Layer_{}"
+
+    def __init__(self, input_model: Model, layer_producers: List[LayerProducer]=(), float_type=tf.float32):
+        assert len(layer_producers) >= 0
         self.__float_type = float_type
         self.__input_model = input_model
         self.__n_in = self.__input_model.n_in
@@ -70,20 +73,33 @@ class FeedForwardNeuralNet(Model):
         self.__trainables = []
         # self.__x_placeholder = input_producer.input
 
-        next_input = self.__input_model.output
-        next_in_dim = self.__input_model.n_out
-        name = "Layer_{}"
-        count = 1
-        for layer in layer_producers:
-            l = layer.get_layer(n_in=next_in_dim, float_type=self.__float_type, name=name.format(count))
-            self.__trainables += l.trainables
-            self.__layers.append(l)
-            next_input = l.output(next_input)
-            next_in_dim = l.n_out
-            count += 1
+        # next_input = self.__input_model.output
+        # next_in_dim = self.__input_model.n_out
+        # count = 1
+        # for layer in layer_producers:
+        #     l = layer.get_layer(n_in=next_in_dim, float_type=self.__float_type,
+        #                         name=FeedForwardNeuralNet.layer_name_proto.format(count))
+        #     self.__trainables += l.trainables
+        #     self.__layers.append(l)
+        #     next_input = l.output(next_input)
+        #     next_in_dim = l.n_out
+        #     count += 1
+        #
+        # self.__n_out = next_in_dim  # the number of output units is determined by the last layer
+        # self.__output = next_input
 
-        self.__n_out = next_in_dim  # the number of output units is determined by the last layer
-        self.__output = next_input
+        self.__n_out = self.__input_model.n_out
+        self.__output = self.__input_model.output
+        for layer_prod in layer_producers:
+            self.add_layer(layer_prod)
+
+    def add_layer(self, layer_producer: LayerProducer):
+        l = layer_producer.get_layer(n_in=self.__n_out, float_type=self.__float_type,
+                                     name=FeedForwardNeuralNet.layer_name_proto.format(len(self.__layers) + 1))
+        self.__trainables += l.trainables
+        self.__layers.append(l)
+        self.__output = l.output(self.__output)
+        self.__n_out = l.n_out
 
     @property
     def output(self):
