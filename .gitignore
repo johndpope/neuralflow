@@ -112,3 +112,5 @@ hs_err_pid*
 arffs/*
 
 
+# tensorflow saved models
+*.meta
