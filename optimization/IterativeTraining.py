@@ -30,10 +30,10 @@ class IterativeTraining(object):
     def set_stopping_criterion(self, criteria: List[StoppingCriterion]):
         self.__stopping_criteria = criteria  # or like
 
-    def __stopping_criteria_satisfied(self):
+    def __stopping_criteria_satisfied(self, sess):
         result = False
         for criterion in self.__stopping_criteria:
-            result = result or criterion.is_satisfied()
+            result = result or sess.run(criterion.is_satisfied())[-1]
         return result
 
     def __init_writers(self, sess):
@@ -70,7 +70,7 @@ class IterativeTraining(object):
                     summary = output[-1]
                     m["writer"].add_summary(summary, i)
             i += 1
-            if i == self.__max_it or sess.run(self.__stopping_criteria_satisfied()):
+            if i == self.__max_it or self.__stopping_criteria_satisfied(sess):
                 print("Stopping criterion satisfied")
                 stop = True
 

@@ -82,3 +82,6 @@ class RocMonitor(Monitor):
     @property
     def value(self):
         return self.__auc_score
+
+
+

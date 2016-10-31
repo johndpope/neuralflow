@@ -8,7 +8,7 @@ from neuralflow import ValidationProducer
 from neuralflow.neuralnets.FeedForwardNeuralNet import FeedForwardNeuralNet
 from neuralflow.neuralnets.FeedForwardNeuralNet import StandardLayerProducer
 from neuralflow.optimization.Monitor import ScalarMonitor, RocMonitor
-from neuralflow.optimization.StoppingCriterion import ThresholdCriterion
+from neuralflow.optimization.StoppingCriterion import ThresholdCriterion, MaxNoImproveCriterion
 from neuralflow.neuralnets.ActivationFunction import SoftmaxActivationFunction
 from neuralflow.neuralnets.ActivationFunction import TanhActivationFunction
 from neuralflow.neuralnets.LossFunction import CrossEntropy
@@ -92,7 +92,7 @@ class EegDataset(BatchProducer, ValidationProducer):
 
 # Data sets
 
-data_file = "/home/giulio/neural_eeg.pkl"
+data_file = "/home/giulio/neural_eeg_1.pkl"
 data = pickle.load(open(data_file, "rb"))
 dataset = EegDataset(data=data, seed=12)
 
@@ -103,7 +103,7 @@ n_in, n_out = example["input"].shape[1], example["output"].shape[1]
 
 seed = 13
 
-hidden_layer_prod_1 = StandardLayerProducer(n_units=500, initialization=GaussianInitialization(mean=0, std_dev=0.1),
+hidden_layer_prod_1 = StandardLayerProducer(n_units=200, initialization=GaussianInitialization(mean=0, std_dev=0.1),
                                             activation_fnc=TanhActivationFunction())
 
 hidden_layer_prod_2 = StandardLayerProducer(n_units=10, initialization=GaussianInitialization(mean=0, std_dev=0.1),
@@ -125,7 +125,7 @@ loss_fnc = CrossEntropy(single_output=True)
 
 problem = SupervisedOptimizationProblem(model=net, loss_fnc=loss_fnc, batch_producer=batch_producer, batch_size=20)
 # optimizer
-optimizer = GradientDescent(lr=0.01, problem=problem)
+optimizer = GradientDescent(lr=0.05, problem=problem)
 
 grad_monitor = ScalarMonitor(name="grad_norm", variable=norm(optimizer.gradient, norm_type="l2"))
 
@@ -136,7 +136,7 @@ roc_monitor = RocMonitor(predictions=net.output, labels=problem.labels)
 
 loss_monitor = ScalarMonitor(name="Loss", variable=problem.objective_fnc_value)
 
-stopping_criterion = ThresholdCriterion(monitor=loss_monitor, thr=0.9, direction='<')
+stopping_criterion = ThresholdCriterion(monitor=loss_monitor, thr=0.2, direction='<')
 
 training.add_monitors(monitors=[grad_monitor], freq=100, name="batch")
 
@@ -148,18 +148,21 @@ train_batch = dataset.get_train()
 training.add_monitors(monitors=[loss_monitor, roc_monitor], freq=100, name="train",
                       feed_dict={net.input: train_batch["input"], problem.labels: train_batch["output"]})
 
-training.set_stopping_criterion([stopping_criterion])
+# max_no_improve
+max_no_improve = MaxNoImproveCriterion(monitor=roc_monitor, max_no_improve=500, direction=">")
+
+training.set_stopping_criterion([stopping_criterion, max_no_improve])
 
 sess = SessionManager.get_session()
 
 training.train(sess)
 
 out = sess.run(net.output, feed_dict={net.input: validation_batch["input"]})
-print(out[0:5])
 
 import tensorflow as tf
-#saver = tf.train.Saver([net.output])
-#saver.save(sess, 'my-model')
+
+# saver = tf.train.Saver([net.output])
+# saver.save(sess, 'my-model')
 
 saver = tf.train.Saver()
 saver.save(sess, "model")
@@ -168,7 +171,7 @@ tf.add_to_collection("net.in", net.input)
 
 # Generates MetaGraphDef.
 saver.export_meta_graph('model.meta')
-#meta_graph_def = tf.train.export_meta_graph(filename='./model.meta', collection_list={"net":net})
+# meta_graph_def = tf.train.export_meta_graph(filename='./model.meta', collection_list={"net":net})
 
 sess.close()
 
@@ -181,6 +184,3 @@ net_in = tf.get_collection("net.in")[0]
 
 out = sess.run(net_out, feed_dict={net_in: validation_batch["input"]})
 print(out)
-
-
-
