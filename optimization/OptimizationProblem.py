@@ -1,6 +1,6 @@
 import abc
 from typing import Dict
-
+import tensorflow as tf
 
 class FeedDictionaryProducer:
     __metaclass__ = abc.ABCMeta
@@ -18,4 +18,7 @@ class OptimizationProblem(FeedDictionaryProducer):
         """"""
     @abc.abstractproperty
     def trainables(self):
+        """"""
+    @abc.abstractmethod
+    def save_check_point(self, file: str, session: tf.Session):
         """"""

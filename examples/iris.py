@@ -12,7 +12,7 @@ from neuralflow.neuralnets.FeedForwardNeuralNet import FeedForwardNeuralNet
 from neuralflow.neuralnets.FeedForwardNeuralNet import StandardLayerProducer
 from neuralflow.optimization.CustomOptimizer import CustomOptimizer
 from neuralflow.optimization.Monitor import ScalarMonitor, AccuracyMonitor
-from neuralflow.optimization.StoppingCriterion import ThresholdCriterion
+from neuralflow.optimization.Criterion import ThresholdCriterion
 from neuralflow.neuralnets.ActivationFunction import SoftmaxActivationFunction
 from neuralflow.neuralnets.ActivationFunction import TanhActivationFunction
 from neuralflow.neuralnets.LossFunction import CrossEntropy
@@ -111,9 +111,9 @@ loss_monitor = ScalarMonitor(name="loss", variable=problem.objective_fnc_value)
 stopping_criterion = ThresholdCriterion(monitor=loss_monitor, thr=0.2, direction='<')
 
 validation_batch = validation_producer.get_validation()
-training.add_monitors(monitors=[loss_monitor, accuracy_monitor], freq=100, name="validation",
-                      feed_dict={net.input: validation_batch["input"], problem.labels: validation_batch["output"]})
-training.add_monitors(monitors=[grad_monitor], freq=100, name="train_batch")
+training.add_monitors_and_criteria(monitors=[loss_monitor, accuracy_monitor], freq=100, name="validation",
+                                   feed_dict={net.input: validation_batch["input"], problem.labels: validation_batch["output"]})
+training.add_monitors_and_criteria(monitors=[grad_monitor], freq=100, name="train_batch")
 
 training.set_stopping_criterion([stopping_criterion])
 

@@ -11,7 +11,7 @@ from neuralflow.neuralnets.FeedForwardNeuralNet import FeedForwardNeuralNet
 from neuralflow.neuralnets.FeedForwardNeuralNet import StandardLayerProducer
 from neuralflow.optimization.CustomOptimizer import CustomOptimizer
 from neuralflow.optimization.Monitor import ScalarMonitor
-from neuralflow.optimization.StoppingCriterion import ThresholdCriterion
+from neuralflow.optimization.Criterion import ThresholdCriterion
 from neuralflow.neuralnets.ActivationFunction import SoftmaxActivationFunction, IdentityFunction, ReLUActivationFunction
 from neuralflow.neuralnets.ActivationFunction import TanhActivationFunction
 from neuralflow.neuralnets.LossFunction import CrossEntropy, SquaredError, MAE
@@ -166,19 +166,19 @@ mae_monitor = ScalarMonitor(name="MAE", variable=mae)
 
 stopping_criterion = ThresholdCriterion(monitor=loss_monitor, thr=0.2, direction='<')
 
-training.add_monitors(monitors=[grad_monitor], freq=100, name="batch")
+training.add_monitors_and_criteria(monitors=[grad_monitor], freq=100, name="batch")
 
 validation_batch = validation_producer.get_validation()
-training.add_monitors(monitors=[loss_monitor], freq=100, name="validation",
-                      feed_dict={net.input: validation_batch["input"], problem.labels: validation_batch["output"]})
+training.add_monitors_and_criteria(monitors=[loss_monitor], freq=100, name="validation",
+                                   feed_dict={net.input: validation_batch["input"], problem.labels: validation_batch["output"]})
 
 train_batch = dataset.get_train()
-training.add_monitors(monitors=[mae_monitor], freq=100, name="train",
-                      feed_dict={net.input: train_batch["input"], problem.labels: train_batch["output"]})
+training.add_monitors_and_criteria(monitors=[mae_monitor], freq=100, name="train",
+                                   feed_dict={net.input: train_batch["input"], problem.labels: train_batch["output"]})
 
 test_batch = dataset.get_test()
-training.add_monitors(monitors=[mae_monitor], freq=100, name="test",
-                      feed_dict={net.input: test_batch["input"], problem.labels: test_batch["output"]})
+training.add_monitors_and_criteria(monitors=[mae_monitor], freq=100, name="test",
+                                   feed_dict={net.input: test_batch["input"], problem.labels: test_batch["output"]})
 training.set_stopping_criterion([stopping_criterion])
 
 training.train()

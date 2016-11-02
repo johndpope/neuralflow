@@ -33,3 +33,6 @@ class SupervisedOptimizationProblem(OptimizationProblem):
     @property
     def trainables(self):
         return self.__model.trainables
+
+    def save_check_point(self, file:str, session:tf.Session):
+        self.__model.save(file, session)
