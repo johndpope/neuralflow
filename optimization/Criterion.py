@@ -41,11 +41,11 @@ class MaxNoImproveCriterion(Criterion):
         self.__compare_fnc, bound = Criterion.get_compare_fnc(direction=direction)
         self.__last_value = tf.Variable(initial_value=bound, name='max_no_improve_last_value', dtype=tf.float64)
 
-        improve_occured = self.__compare_fnc(self.__monitor.value, self.__last_value)
+        improve_occured = self.__compare_fnc(tf.cast(self.__monitor.value, dtype=tf.float64), self.__last_value)
         self.__count_op = self.__count.assign(
             tf.cond(improve_occured, lambda: tf.constant(0), lambda: tf.add(self.__count, 1)))
         self.__last_value_op = self.__last_value.assign(
-            tf.cond(improve_occured, lambda: self.__monitor.value, lambda: self.__last_value,
+            tf.cond(improve_occured, lambda: tf.cast(self.__monitor.value, dtype=tf.float64), lambda: self.__last_value,
                     name="max_no_improve_last_value_op"))
         self.__max_reached = self.__count > self.__max_no_improve
 

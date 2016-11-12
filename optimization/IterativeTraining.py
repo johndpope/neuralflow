@@ -65,6 +65,7 @@ class IterativeTraining(object):
         print("Beginning training...")
 
         sess.run(tf.initialize_all_variables())  # TODO spostare?
+        sess.run(tf.initialize_local_variables())
         # train step
         train_step = self.__optimizer.train_op
 
@@ -85,12 +86,12 @@ class IterativeTraining(object):
                 m = self.__monitor_dict[id]
                 f = m["freq"]
                 if i % f == 0:
-                    run_list = [m["ops"], m["summary"], m["saving_criteria"], m["stopping_criteria"]]
+                    run_list = [m["summary"], m["ops"], m["saving_criteria"], m["stopping_criteria"]]
                     output = sess.run(run_list,
                                       feed_dict=train_dict if m["feed_dict"] is None else m["feed_dict"])
                     # output[-1]
-                    summary, save_crit_res, stop_crit_res = output[1], output[2], output[3]
-                    # print(m["name"], save_crit_res)
+                    summary, save_crit_res, stop_crit_res = output[0], output[2], output[3]
+                    if m["name"] == "validation": print(m["name"], output[2][0][0])
                     m["writer"].add_summary(summary, i)
                     if IterativeTraining.__criteria_satisfied(save_crit_res):
                         print("Best model found -> saving checkpoint...")

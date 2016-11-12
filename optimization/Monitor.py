@@ -31,7 +31,7 @@ class ScalarMonitor(Monitor):
 
     @property
     def value(self) -> float:
-        return self.__stored_value
+        return tf.cast(self.__variable, dtype='float64')
 
     @property
     def summary(self):
@@ -81,7 +81,7 @@ class RocMonitor(Monitor):
 
     @property
     def value(self):
-        return self.__auc_score
+        return tf.cast(self.__auc_score, dtype=tf.float64)
 
 
 
