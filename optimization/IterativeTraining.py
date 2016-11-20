@@ -1,6 +1,7 @@
 from typing import List
 
 import tensorflow as tf
+import time
 from neuralflow.optimization.Monitor import Monitor
 from neuralflow.optimization.OptimizationProblem import OptimizationProblem
 from neuralflow.optimization.Criterion import Criterion, NullCriterion
@@ -64,19 +65,25 @@ class IterativeTraining(object):
     def train(self, sess: tf.Session):
         print("Beginning training...")
 
-        sess.run(tf.initialize_all_variables())  # TODO spostare?
-        sess.run(tf.initialize_local_variables())
         # train step
         train_step = self.__optimizer.train_op
 
+        sess = tf.Session()
+
         self.__init_writers(sess)
+
+        sess.run(tf.initialize_all_variables())  # TODO spostare?
+        sess.run(tf.initialize_local_variables())
 
         stop = False
         i = 0
 
+        t0 = time.time()
         while not stop:
             if i % 100 == 0:
-                print("Iteration: {}".format(i))
+                t1 = time.time()
+                print("Iteration: {}, time:{:.1f}s".format(i, t1 - t0))
+                t0 = t1
 
             train_dict = self.__problem.get_feed_dict()
             sess.run(train_step, feed_dict=train_dict)
@@ -94,14 +101,16 @@ class IterativeTraining(object):
                     if m["name"] == "validation": print(m["name"], output[2][0][0])
                     m["writer"].add_summary(summary, i)
                     if IterativeTraining.__criteria_satisfied(save_crit_res):
-                        print("Best model found -> saving checkpoint...")
                         save = True
 
                     if i == self.__max_it or IterativeTraining.__criteria_satisfied(stop_crit_res):
                         print("Stopping criterion satisfied")
                         stop = True
             if save:
+                tsave0 = time.time()
                 self.__problem.save_check_point(file=self.__output_dir + "best_checkpoint", session=sess)
+                tsave1 = time.time()
+                print("Best model found -> checkpoint saved ({:.2f}s)".format(tsave1 - tsave0))
 
             i += 1
 

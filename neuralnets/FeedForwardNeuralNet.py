@@ -63,7 +63,8 @@ class StandardLayerProducer(LayerProducer):
 class FeedForwardNeuralNet(Model):
     layer_name_proto = "Layer_{}"
 
-    def __init__(self, input_model: Model, layer_producers: List[LayerProducer]=(), float_type=tf.float32):
+    def __init__(self, input_model: Model, layer_producers: List[LayerProducer] = (), float_type=tf.float32):
+        super().__init__()
         assert len(layer_producers) >= 0
         self.__float_type = float_type
         self.__input_model = input_model

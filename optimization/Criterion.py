@@ -27,9 +27,9 @@ class ThresholdCriterion(Criterion):
     def __init__(self, monitor: Monitor, thr: float, direction: str):
         self.__monitor = monitor
         self.__thr = thr
-        self.__compare_fnc = Criterion.get_compare_fnc(direction=direction)
+        self.__compare_fnc, _ = Criterion.get_compare_fnc(direction=direction)
 
-    def is_satisfied(self):
+    def is_satisfied(self) -> List:
         return [self.__compare_fnc(self.__monitor.value, self.__thr)]
 
 

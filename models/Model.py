@@ -2,6 +2,8 @@ import abc
 import tensorflow as tf
 import os
 
+import time
+
 
 class Model(object):
     __metaclass__ = abc.ABCMeta
@@ -26,20 +28,26 @@ class Model(object):
     def trainables(self):
         """returns the list of trainable variables"""
 
-    def save(self, file: str, session: tf.Session):
-        """save the model to file"""
-        os.makedirs(os.path.dirname(file), exist_ok=True)
-        saver = tf.train.Saver()
-        saver.save(session, file)
-        tf.add_to_collection("net.out", self.output)
-        tf.add_to_collection("net.in", self.input)
+    def __init__(self):
+        self.__meta_graph_saved = False
 
-        # Generates MetaGraphDef.
-        saver.export_meta_graph(file + ".meta")
+    def save(self, file: str, session: tf.Session):  # FIXME
+        """save the model to file"""
+        self.__saver = tf.train.Saver(var_list=self.trainables)
+
+        self.__saver.save(session, file, write_meta_graph=False)
+        if not self.__meta_graph_saved:
+            tf.add_to_collection("net.out", self.output)
+            tf.add_to_collection("net.in", self.input)
+            os.makedirs(os.path.dirname(file), exist_ok=True)
+            # Generates MetaGraphDef.
+            self.__saver.export_meta_graph(file + ".meta")
+            self.__meta_graph_saved = True
 
 
 class ExternalInputModel(Model):
     def __init__(self, n_in: int, float_type="float32"):
+        super().__init__()
         self.__n_in = n_in
         self.__input_placeholder = tf.placeholder(dtype=float_type, shape=(None, n_in), name="ExternalInput")
 

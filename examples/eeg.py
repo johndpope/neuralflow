@@ -1,4 +1,5 @@
 import numpy as np
+from Kaggle.MachineLearning.aggregate_by_id import aggregate_by_id
 from Kaggle.Utils.SubmissionExporter import SubmissionExporter
 from SessionManager import SessionManager
 from neuralflow.math_utils import norm
@@ -16,10 +17,13 @@ from neuralflow.neuralnets.LossFunction import CrossEntropy
 from neuralflow.optimization.IterativeTraining import IterativeTraining
 from neuralflow.optimization.SupervisedOptimizationProblem import SupervisedOptimizationProblem
 from neuralflow.optimization.GradientDescent import GradientDescent
+from scipy.stats import rankdata
 from sklearn import preprocessing
 import pickle
 import os
 from Kaggle.convert_dataset_neural import pack_dataset
+from sklearn.metrics import roc_auc_score
+from sklearn.preprocessing import MinMaxScaler
 
 
 def add_dummy_dim(data):
@@ -85,7 +89,7 @@ class EegDataset(BatchProducer, ValidationProducer):
 
     def get_batch(self, batch_size):
 
-        balanced = False
+        balanced = True
         if balanced:
             bs = int(batch_size / 2)
             pos_i = self.__rnd.randint(0, len(self.__pos), size=(bs,))
@@ -110,11 +114,11 @@ def define_problem(dataset, seed, output_dir):
     # print(example)
     n_in, n_out = example["input"].shape[1], example["output"].shape[1]
 
-    hidden_layer_prod_1 = StandardLayerProducer(n_units=300,
+    hidden_layer_prod_1 = StandardLayerProducer(n_units=2000,
                                                 initialization=GaussianInitialization(mean=0, std_dev=0.1, seed=seed),
                                                 activation_fnc=TanhActivationFunction())
 
-    hidden_layer_prod_2 = StandardLayerProducer(n_units=100,
+    hidden_layer_prod_2 = StandardLayerProducer(n_units=500,
                                                 initialization=GaussianInitialization(mean=0, std_dev=0.1, seed=seed),
                                                 activation_fnc=TanhActivationFunction())
     output_layer_prod = StandardLayerProducer(n_units=n_out,
@@ -123,7 +127,7 @@ def define_problem(dataset, seed, output_dir):
 
     net = FeedForwardNeuralNet(input_model=ExternalInputModel(n_in=n_in))
     net.add_layer(hidden_layer_prod_1)
-    net.add_layer(hidden_layer_prod_1)
+    # net.add_layer(hidden_layer_prod_1)
     net.add_layer(hidden_layer_prod_2)
     net.add_layer(output_layer_prod)
 
@@ -132,7 +136,7 @@ def define_problem(dataset, seed, output_dir):
     batch_producer = dataset
     validation_producer = batch_producer
     # objective function
-    loss_fnc = CrossEntropy(single_output=True, class_weights=dataset.class_weights)
+    loss_fnc = CrossEntropy(single_output=True)  # , class_weights=dataset.class_weights)
 
     problem = SupervisedOptimizationProblem(model=net, loss_fnc=loss_fnc, batch_producer=batch_producer, batch_size=20)
     # optimizer
@@ -141,7 +145,7 @@ def define_problem(dataset, seed, output_dir):
     grad_monitor = ScalarMonitor(name="grad_norm", variable=norm(optimizer.gradient, norm_type="l2"))
 
     # training
-    training = IterativeTraining(max_it=10 ** 6, optimizer=optimizer, problem=problem, output_dir=output_dir)
+    training = IterativeTraining(max_it=25000, optimizer=optimizer, problem=problem, output_dir=output_dir)
 
     # monitors
     tr_roc_monitor = RocMonitor(predictions=net.output, labels=problem.labels)
@@ -152,7 +156,9 @@ def define_problem(dataset, seed, output_dir):
 
     # stopping_criteria
     # thr_criterion = ThresholdCriterion(monitor=loss_monitor, thr=0.2, direction='<')
-    max_no_improve = MaxNoImproveCriterion(monitor=val_loss_monitor, max_no_improve=20, direction="<")
+    max_no_improve = MaxNoImproveCriterion(monitor=val_roc_monitor, max_no_improve=20, direction=">")
+
+    #low_grad_stopping_criterion = ThresholdCriterion(monitor=grad_monitor, thr=0.01, direction="<")
 
     # saving criteria
     value_improved_criterion = ImprovedValueCriterion(monitor=val_roc_monitor, direction=">")
@@ -170,31 +176,20 @@ def define_problem(dataset, seed, output_dir):
                                        stopping_criteria=[max_no_improve])
 
     # add monitors and criteria on train-set
-    train_batch = dataset.get_train()
-    training.add_monitors_and_criteria(monitors=[tr_loss_monitor, tr_roc_monitor], freq=100, name="train",
-                                       feed_dict={net.input: train_batch["input"],
-                                                  problem.labels: train_batch["output"]})
+    # train_batch = dataset.get_train()
+    # training.add_monitors_and_criteria(monitors=[tr_loss_monitor, tr_roc_monitor], freq=100, name="train",
+    #                                    feed_dict={net.input: train_batch["input"],
+    #                                               problem.labels: train_batch["output"]})
 
     return training, net
 
 
-############## start seed looping #####################
-
-root_dir = "/home/giulio/"
-dataset_type = 'power'
-seeds = range(20)
-
-test_predictions = None
-data = None
-
-import tensorflow as tf
-
-
-for seed in seeds:
-    print("Seed: {}".format(seed))
-    output_dir = "/home/giulio/tensorBoards/{}/".format(seed)
-    data = pack_dataset(seed, dataset_type, root_dir)
+def process_patient(seed, pat_id):
+    output_dir = "/home/giulio/tensorBoards/{}_{}/".format(seed, pat_id)
+    data = pack_dataset(seed, dataset_type, root_dir, patient_ids=[pat_id])
     dataset = EegDataset(data=data, seed=seed)
+
+    test_names = aggregate_by_id(data["test_segments"], data["test_names"])
 
     tf.reset_default_graph()
     sess = tf.Session()
@@ -205,20 +200,86 @@ for seed in seeds:
     new_saver = tf.train.import_meta_graph(output_dir + 'best_checkpoint.meta')
     new_saver.restore(sess, output_dir + 'best_checkpoint')
 
-    net_out = tf.get_collection("net.out")[0]
+    net_out = tf.get_collection("net.out")[0]  # XXX
     net_in = tf.get_collection("net.in")[0]
 
-    new_predictions = sess.run(net.output, feed_dict={net.input: dataset.get_test()["input"]})
+    test_predictions = sess.run(net_out, feed_dict={net_in: dataset.get_test()["input"]})
+    test_predictions = aggregate_by_id(data["test_segments"], test_predictions, np.mean)
+
+    validation_prediction = sess.run(net_out, feed_dict={net_in: dataset.get_validation()["input"]})
+    validation_targets = dataset.get_validation()["output"]
+
+    auc_splitted = roc_auc_score(y_true=validation_targets, y_score=validation_prediction)
+
+    validation_prediction = aggregate_by_id(data["val_segments"], validation_prediction, np.mean)
+    validation_targets = aggregate_by_id(data["val_segments"], validation_targets)
+
+    auc_cumulative = roc_auc_score(y_true=validation_targets, y_score=validation_prediction)
+    print("\tValidation-> auc_splitted:{:.3f}, auc_cumulative:{:.3f}".format(auc_splitted, auc_cumulative))
 
     sess.close()
 
-    test_predictions = new_predictions if test_predictions is None else new_predictions + test_predictions
+    return validation_prediction, validation_targets, test_predictions, test_names, data["blacklist"]
 
-    exporter = SubmissionExporter(output_filename="./submission_FFNN", append=False)
-    exporter.export_results(new_predictions, data["test_names"], data["blacklist"])
 
+# duplicate form Kaggle
+def combine_predictions(*predictions):
+    if not predictions:
+        return None
+    elif len(predictions) < 2:
+        return np.array(predictions[0])
+    else:
+        acc = np.zeros_like(predictions[0])
+
+        for p in predictions:
+            ranking = rankdata(p, method="ordinal").astype(float)
+            scaled_predictions = np.array(MinMaxScaler().fit_transform(ranking.reshape(-1, 1))).squeeze()
+            acc += scaled_predictions
+        return acc / len(predictions)
+
+
+############## start seed looping #####################
+
+import tensorflow as tf
+
+root_dir = "/home/giulio/"
+dataset_type = 'power'
+seeds = range(5)
+#seeds = [87]
+
+test_predictions_runs = []
+aucs = []
+test_names = None
+blacklist = None
+
+for seed in seeds:
+    print("Seed: {}".format(seed))
+    test_names = np.array([])
+    test_predictions_list = []
+    validation_predictions_list = []
+    validation_targets_list = []
+    blacklist = []
+
+    for pat_id in [1, 2, 3]:
+        print("\tProcessing patient {}...".format(pat_id))
+        validation_prediction_pat, validation_targets_pat, test_predictions_pat, test_names_pat, blacklist_pat = process_patient(
+            seed, pat_id)
+        test_names = np.concatenate((test_names, test_names_pat))
+        blacklist += blacklist_pat
+        validation_targets_list.append(validation_targets_pat)
+        validation_predictions_list.append(validation_prediction_pat)
+        test_predictions_list.append(test_predictions_pat)
+
+    auc_all_pats = roc_auc_score(y_true=np.concatenate(validation_targets_list),
+                                 y_score=np.concatenate(validation_predictions_list))
+    print("Validation-> auc_cumulative_all_pats:{:.3f}".format(auc_all_pats))
+    aucs.append(auc_all_pats)
+    test_predictions_runs.append(np.concatenate(test_predictions_list))
+
+print("Mean AUC:{:.4f}".format(np.mean(np.array(aucs))))
+test_predictions = combine_predictions(*test_predictions_runs)
 exporter = SubmissionExporter(output_filename="./submission_FFNN_final", append=False)
-exporter.export_results(test_predictions / len(seeds), data["test_names"], data["blacklist"])
+exporter.export_results(test_predictions, test_names, blacklist)
 
 
 

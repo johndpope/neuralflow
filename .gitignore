@@ -114,3 +114,4 @@ arffs/*
 
 # tensorflow saved models
 *.meta
+*.csv
