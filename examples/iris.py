@@ -9,10 +9,9 @@ from neuralflow import GaussianInitialization
 from neuralflow import ValidationProducer
 
 from neuralflow.neuralnets.FeedForwardNeuralNet import FeedForwardNeuralNet
-from neuralflow.neuralnets.FeedForwardNeuralNet import StandardLayerProducer
-from neuralflow.optimization.CustomOptimizer import CustomOptimizer
+from neuralnets.Layers import StandardLayerProducer, RBFLayerProducer
 from neuralflow.optimization.Monitor import ScalarMonitor, AccuracyMonitor
-from neuralflow.optimization.Criterion import ThresholdCriterion
+from neuralflow.optimization.Criterion import ThresholdCriterion, MaxNoImproveCriterion, ImprovedValueCriterion
 from neuralflow.neuralnets.ActivationFunction import SoftmaxActivationFunction
 from neuralflow.neuralnets.ActivationFunction import TanhActivationFunction
 from neuralflow.neuralnets.LossFunction import CrossEntropy
@@ -20,14 +19,16 @@ from neuralflow.optimization.IterativeTraining import IterativeTraining
 from neuralflow.optimization.SupervisedOptimizationProblem import SupervisedOptimizationProblem
 from optimization.GradientDescent import GradientDescent
 from sklearn import preprocessing
+from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import OneHotEncoder
 
 
 class IrisDataset(BatchProducer, ValidationProducer):
     def __init__(self, csv_path: str, seed: int):
         training_set = tf.contrib.learn.datasets.base.load_csv_with_header(filename=csv_path + "iris_training.csv",
-                                                               target_dtype=np.int, features_dtype=np.float)
-        test_set = tf.contrib.learn.datasets.base.load_csv_with_header(filename=csv_path + "iris_test.csv", target_dtype=np.int, features_dtype=np.float)
+                                                                           target_dtype=np.int, features_dtype=np.float)
+        test_set = tf.contrib.learn.datasets.base.load_csv_with_header(filename=csv_path + "iris_test.csv",
+                                                                       target_dtype=np.int, features_dtype=np.float)
 
         x_train, x_test, y_train, y_test = training_set.data, test_set.data, \
                                            training_set.target, test_set.target
@@ -74,52 +75,75 @@ class IrisDataset(BatchProducer, ValidationProducer):
         return batch
 
 
-# Data sets
-csv_path = "./examples/"
-dataset = IrisDataset(csv_path=csv_path, seed=12)
+def define_problem(dataset, output_dir):
+    example = dataset.get_batch(1)
+    n_in, n_out = example["input"].shape[1], example["output"].shape[1]
+    print("n_in:{}, n_out:{}".format(n_in, n_out))
 
-# train
-example = dataset.get_batch(1)
-n_in, n_out = example["input"].shape[1], example["output"].shape[1]
-print("n_in:{}, n_out:{}".format(n_in, n_out))
+    seed = 13
 
-seed = 13
+    hidden_layer_prod = StandardLayerProducer(n_units=100, initialization=GaussianInitialization(mean=0, std_dev=0.1),
+                                              activation_fnc=TanhActivationFunction())
+    rbf_layer_producer = RBFLayerProducer(n_units=10, initialization=GaussianInitialization(mean=0, std_dev=0.1))
+    output_layer_prod = StandardLayerProducer(n_units=n_out, initialization=GaussianInitialization(mean=0, std_dev=0.1),
+                                              activation_fnc=SoftmaxActivationFunction(single_output=False))
 
-hidden_layer_prod = StandardLayerProducer(n_units=50, initialization=GaussianInitialization(mean=0, std_dev=0.1),
-                                          activation_fnc=TanhActivationFunction())
-output_layer_prod = StandardLayerProducer(n_units=n_out, initialization=GaussianInitialization(mean=0, std_dev=0.1),
-                                          activation_fnc=SoftmaxActivationFunction(single_output=False))
+    net = FeedForwardNeuralNet(input_model=ExternalInputModel(n_in=n_in))
+    net.add_layer(hidden_layer_prod)
+    #net.add_layer(hidden_layer_prod)
+    net.add_layer(rbf_layer_producer)
+    net.add_layer(output_layer_prod)
 
-net = FeedForwardNeuralNet(input_model=ExternalInputModel(n_in=n_in), layer_producers=[hidden_layer_prod, hidden_layer_prod, output_layer_prod])
+    # objective function
+    loss_fnc = CrossEntropy(single_output=False)
 
-batch_producer = dataset
-validation_producer = batch_producer
-# objective function
-loss_fnc = CrossEntropy(single_output=False)
+    problem = SupervisedOptimizationProblem(model=net, loss_fnc=loss_fnc, batch_producer=dataset, batch_size=20)
+    # optimizer
+    optimizer = GradientDescent(lr=0.01, problem=problem)
+    # training
+    training = IterativeTraining(max_it=10 ** 6, optimizer=optimizer, problem=problem, output_dir=output_dir)
 
-problem = SupervisedOptimizationProblem(model=net, loss_fnc=loss_fnc, batch_producer=batch_producer, batch_size=20)
-# optimizer
-optimizer = GradientDescent(lr=0.01, problem=problem)
-# training
-training = IterativeTraining(max_it=10 ** 6, optimizer=optimizer, problem=problem)
+    # monitors
+    grad_monitor = ScalarMonitor(name="grad_norm", variable=norm(optimizer.gradient, norm_type="l2"))
+    accuracy_monitor = AccuracyMonitor(predictions=net.output, labels=problem.labels)
+    loss_monitor = ScalarMonitor(name="loss", variable=problem.objective_fnc_value)
 
-# monitors
-grad_monitor = ScalarMonitor(name="grad_norm", variable=norm(optimizer.gradient, norm_type="l2"))
-accuracy_monitor = AccuracyMonitor(predictions=net.output, labels=problem.labels)
-loss_monitor = ScalarMonitor(name="loss", variable=problem.objective_fnc_value)
+    max_no_improve = MaxNoImproveCriterion(monitor=loss_monitor, max_no_improve=50, direction="<")
 
-stopping_criterion = ThresholdCriterion(monitor=loss_monitor, thr=0.2, direction='<')
+    # saving criteria
+    value_improved_criterion = ImprovedValueCriterion(monitor=loss_monitor, direction="<")
 
-validation_batch = validation_producer.get_validation()
-training.add_monitors_and_criteria(monitors=[loss_monitor, accuracy_monitor], freq=100, name="validation",
-                                   feed_dict={net.input: validation_batch["input"], problem.labels: validation_batch["output"]})
-training.add_monitors_and_criteria(monitors=[grad_monitor], freq=100, name="train_batch")
+    # stopping_criterion = ThresholdCriterion(monitor=loss_monitor, thr=0.2, direction='<')
 
-training.set_stopping_criterion([stopping_criterion])
+    validation_batch = dataset.get_validation()
+    training.add_monitors_and_criteria(monitors=[loss_monitor, accuracy_monitor], freq=100, name="validation",
+                                       feed_dict={net.input: validation_batch["input"],
+                                                  problem.labels: validation_batch["output"]},
+                                       stopping_criteria=[max_no_improve], saving_criteria=[value_improved_criterion])
+    training.add_monitors_and_criteria(monitors=[grad_monitor], freq=100, name="train_batch")
 
-training.train()
+    return training, net
 
-sess = SessionManager.get_session()
 
-out = sess.run(net.output, feed_dict={net.input:validation_batch["input"]})
-print(out)
+if __name__ == "__main__":
+    # Data sets
+    csv_path = "./examples/"
+    dataset = IrisDataset(csv_path=csv_path, seed=12)
+
+    output_dir = "/home/giulio/tensorBoards/"
+
+    training, net = define_problem(dataset, output_dir)
+    sess = tf.Session()
+    training.train(sess=sess)
+    #sess.close()
+
+    new_saver = tf.train.import_meta_graph(output_dir + 'best_checkpoint.meta')
+    new_saver.restore(sess, output_dir + 'best_checkpoint')
+
+    net_out = tf.get_collection("net.out")[0]  # XXX
+    net_in = tf.get_collection("net.in")[0]
+    out = sess.run(net.output, feed_dict={net.input: dataset.get_test()["input"]})
+
+    score = accuracy_score(y_true=numpy.argmax(dataset.get_test()["output"], axis=1), y_pred=numpy.argmax(out, axis=1))
+    sess.close()
+    print("Accuracy score: {:.2f}".format(score))

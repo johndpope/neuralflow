@@ -68,7 +68,7 @@ class IterativeTraining(object):
         # train step
         train_step = self.__optimizer.train_op
 
-        sess = tf.Session()
+        # sess = tf.Session()
 
         self.__init_writers(sess)
 

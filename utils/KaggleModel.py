@@ -8,7 +8,8 @@ from neuralflow import GaussianInitialization
 from neuralflow import HingeLoss
 from neuralflow import SoftmaxActivationFunction
 from neuralflow import TanhActivationFunction
-from neuralflow.neuralnets.FeedForwardNeuralNet import StandardLayerProducer, FeedForwardNeuralNet
+from neuralflow.neuralnets.FeedForwardNeuralNet import FeedForwardNeuralNet
+from neuralnets.Layers import StandardLayerProducer
 from neuralflow.optimization.Criterion import MaxNoImproveCriterion, ImprovedValueCriterion
 from neuralflow.optimization.GradientDescent import GradientDescent
 from neuralflow.optimization.IterativeTraining import IterativeTraining

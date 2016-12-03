@@ -1,63 +1,11 @@
-import abc
 from typing import List
 
 import numpy as np
 import tensorflow as tf
+from neuralflow.TensorInitilization import GaussianInitialization
 from neuralflow.models.Model import Model, ExternalInputModel
-from neuralflow.TensorInitilization import TensorInitialization, GaussianInitialization
-from neuralflow.neuralnets.ActivationFunction import ActivationFunction, IdentityFunction, TanhActivationFunction
-
-
-class Layer(object):
-    __metaclass__ = abc.ABCMeta
-
-    @abc.abstractmethod
-    def output(self, input):
-        """return the symbolic output of the layer given the input"""
-
-    @abc.abstractproperty
-    def trainables(self):
-        """returns the list of trainable variables"""
-
-
-class StandardLayer(Layer):
-    def __init__(self, W, b, activation_fnc: ActivationFunction, float_type, name: str):
-        self.__W = tf.Variable(initial_value=W, name=name + '_W', dtype=float_type)
-        self.__b = tf.Variable(initial_value=b, name=name + '_b', dtype=float_type)
-        self.__n_out = W.shape[1]
-        self.__activation_fnc = activation_fnc
-
-    @property
-    def n_out(self):
-        return self.__n_out
-
-    def output(self, input):
-        return self.__activation_fnc.apply(tf.matmul(input, self.__W) + self.__b)
-
-    @property
-    def trainables(self):
-        return [self.__W, self.__b]
-
-
-class LayerProducer(object):
-    __metaclass__ = abc.ABCMeta
-
-    @abc.abstractmethod
-    def get_layer(self, n_in: int, float_type, name: str):
-        """return a layer which accepts an input of with dimension 'n_in' """
-
-
-class StandardLayerProducer(LayerProducer):
-    def __init__(self, n_units: int, initialization: TensorInitialization, activation_fnc: ActivationFunction):
-        self.__n_units = n_units
-        self.__initialization = initialization
-        self.__activation_fnc = activation_fnc
-
-    def get_layer(self, n_in: int, float_type, name: str = 'Unknown_Layer'):
-        W = self.__initialization.get(size=(n_in, self.__n_units))
-        # W = np.zeros(shape=(n_in, self.__n_units))
-        b = np.zeros(shape=(self.__n_units,))  # TODO passare da fuori
-        return StandardLayer(W, b, self.__activation_fnc, float_type, name)
+from neuralflow.neuralnets.ActivationFunction import IdentityFunction, TanhActivationFunction
+from neuralnets.Layers import LayerProducer, StandardLayerProducer
 
 
 class FeedForwardNeuralNet(Model):
@@ -72,22 +20,6 @@ class FeedForwardNeuralNet(Model):
 
         self.__layers = []
         self.__trainables = []
-        # self.__x_placeholder = input_producer.input
-
-        # next_input = self.__input_model.output
-        # next_in_dim = self.__input_model.n_out
-        # count = 1
-        # for layer in layer_producers:
-        #     l = layer.get_layer(n_in=next_in_dim, float_type=self.__float_type,
-        #                         name=FeedForwardNeuralNet.layer_name_proto.format(count))
-        #     self.__trainables += l.trainables
-        #     self.__layers.append(l)
-        #     next_input = l.output(next_input)
-        #     next_in_dim = l.n_out
-        #     count += 1
-        #
-        # self.__n_out = next_in_dim  # the number of output units is determined by the last layer
-        # self.__output = next_input
 
         self.__n_out = self.__input_model.n_out
         self.__output = self.__input_model.output

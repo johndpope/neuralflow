@@ -8,7 +8,7 @@ from neuralflow import GaussianInitialization
 from neuralflow import ValidationProducer
 
 from neuralflow.neuralnets.FeedForwardNeuralNet import FeedForwardNeuralNet
-from neuralflow.neuralnets.FeedForwardNeuralNet import StandardLayerProducer
+from neuralnets.Layers import StandardLayerProducer
 from neuralflow.optimization.CustomOptimizer import CustomOptimizer
 from neuralflow.optimization.Monitor import ScalarMonitor
 from neuralflow.optimization.Criterion import ThresholdCriterion
