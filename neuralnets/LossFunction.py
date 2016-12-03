@@ -39,3 +39,10 @@ class MAE(LossFunction):
     def value(self, y, t):
         c = tf.reduce_mean(tf.abs(self.__scale_fnc(y) - self.__scale_fnc(t)), reduction_indices=[1])
         return tf.reduce_mean(c)
+
+
+class HingeLoss(LossFunction):
+    def value(self, y, t):
+        t_ = t * 2 - 1
+        c = tf.reduce_mean(tf.maximum(0., 1. - t_ * y), reduction_indices=[1])
+        return tf.reduce_mean(c)

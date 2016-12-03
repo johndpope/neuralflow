@@ -1,7 +1,7 @@
 import numpy as np
 from Kaggle.MachineLearning.aggregate_by_id import aggregate_by_id
 from Kaggle.Utils.SubmissionExporter import SubmissionExporter
-from SessionManager import SessionManager
+# from SessionManager import SessionManager
 from neuralflow.math_utils import norm
 from neuralflow.models.Model import ExternalInputModel
 from neuralflow import BatchProducer
@@ -13,7 +13,7 @@ from neuralflow.optimization.Monitor import ScalarMonitor, RocMonitor
 from neuralflow.optimization.Criterion import ThresholdCriterion, MaxNoImproveCriterion, ImprovedValueCriterion
 from neuralflow.neuralnets.ActivationFunction import SoftmaxActivationFunction
 from neuralflow.neuralnets.ActivationFunction import TanhActivationFunction
-from neuralflow.neuralnets.LossFunction import CrossEntropy
+from neuralflow.neuralnets.LossFunction import CrossEntropy, HingeLoss
 from neuralflow.optimization.IterativeTraining import IterativeTraining
 from neuralflow.optimization.SupervisedOptimizationProblem import SupervisedOptimizationProblem
 from neuralflow.optimization.GradientDescent import GradientDescent
@@ -49,6 +49,8 @@ class EegDataset(BatchProducer, ValidationProducer):
         self.__y_validation = y_validation
 
         x_scaler = preprocessing.StandardScaler().fit(np.concatenate((x_train, x_validation, x_test)))
+        # x_scaler = preprocessing.MinMaxScaler().fit(np.concatenate((x_train, x_validation, x_test)))
+
         self.__x_test = x_scaler.transform(x_test)
         self.__x_train = x_scaler.transform(x_train)
         self.__x_validation = x_scaler.transform(x_validation)
@@ -114,11 +116,19 @@ def define_problem(dataset, seed, output_dir):
     # print(example)
     n_in, n_out = example["input"].shape[1], example["output"].shape[1]
 
-    hidden_layer_prod_1 = StandardLayerProducer(n_units=2000,
+    hidden_layer_prod_1 = StandardLayerProducer(n_units=500,
                                                 initialization=GaussianInitialization(mean=0, std_dev=0.1, seed=seed),
                                                 activation_fnc=TanhActivationFunction())
 
-    hidden_layer_prod_2 = StandardLayerProducer(n_units=500,
+    hidden_layer_prod_2 = StandardLayerProducer(n_units=2000,
+                                                initialization=GaussianInitialization(mean=0, std_dev=0.1, seed=seed),
+                                                activation_fnc=TanhActivationFunction())
+
+    hidden_layer_prod_3 = StandardLayerProducer(n_units=500,
+                                                initialization=GaussianInitialization(mean=0, std_dev=0.1, seed=seed),
+                                                activation_fnc=TanhActivationFunction())
+
+    hidden_layer_prod_4 = StandardLayerProducer(n_units=100,
                                                 initialization=GaussianInitialization(mean=0, std_dev=0.1, seed=seed),
                                                 activation_fnc=TanhActivationFunction())
     output_layer_prod = StandardLayerProducer(n_units=n_out,
@@ -127,8 +137,15 @@ def define_problem(dataset, seed, output_dir):
 
     net = FeedForwardNeuralNet(input_model=ExternalInputModel(n_in=n_in))
     net.add_layer(hidden_layer_prod_1)
-    # net.add_layer(hidden_layer_prod_1)
-    net.add_layer(hidden_layer_prod_2)
+    net.add_layer(hidden_layer_prod_1)
+    # net.add_layer(hidden_layer_prod_2)
+    # net.add_layer(hidden_layer_prod_2)
+    # net.add_layer(hidden_layer_prod_3)
+    # net.add_layer(hidden_layer_prod_3)
+    # net.add_layer(hidden_layer_prod_3)
+    # net.add_layer(hidden_layer_prod_4)
+    # net.add_layer(hidden_layer_prod_4)
+    # net.add_layer(hidden_layer_prod_4)
     net.add_layer(output_layer_prod)
 
     print("n_in:{}, n_out:{}".format(n_in, n_out))
@@ -136,7 +153,8 @@ def define_problem(dataset, seed, output_dir):
     batch_producer = dataset
     validation_producer = batch_producer
     # objective function
-    loss_fnc = CrossEntropy(single_output=True)  # , class_weights=dataset.class_weights)
+    # loss_fnc = CrossEntropy(single_output=True)  # , class_weights=dataset.class_weights)
+    loss_fnc = HingeLoss()
 
     problem = SupervisedOptimizationProblem(model=net, loss_fnc=loss_fnc, batch_producer=batch_producer, batch_size=20)
     # optimizer
@@ -145,7 +163,7 @@ def define_problem(dataset, seed, output_dir):
     grad_monitor = ScalarMonitor(name="grad_norm", variable=norm(optimizer.gradient, norm_type="l2"))
 
     # training
-    training = IterativeTraining(max_it=25000, optimizer=optimizer, problem=problem, output_dir=output_dir)
+    training = IterativeTraining(max_it=10 * 4, optimizer=optimizer, problem=problem, output_dir=output_dir)
 
     # monitors
     tr_roc_monitor = RocMonitor(predictions=net.output, labels=problem.labels)
@@ -156,9 +174,9 @@ def define_problem(dataset, seed, output_dir):
 
     # stopping_criteria
     # thr_criterion = ThresholdCriterion(monitor=loss_monitor, thr=0.2, direction='<')
-    max_no_improve = MaxNoImproveCriterion(monitor=val_roc_monitor, max_no_improve=20, direction=">")
+    max_no_improve = MaxNoImproveCriterion(monitor=val_roc_monitor, max_no_improve=100, direction=">")
 
-    #low_grad_stopping_criterion = ThresholdCriterion(monitor=grad_monitor, thr=0.01, direction="<")
+    # low_grad_stopping_criterion = ThresholdCriterion(monitor=grad_monitor, thr=0.01, direction="<")
 
     # saving criteria
     value_improved_criterion = ImprovedValueCriterion(monitor=val_roc_monitor, direction=">")
@@ -242,10 +260,11 @@ def combine_predictions(*predictions):
 
 import tensorflow as tf
 
-root_dir = "/home/giulio/"
-dataset_type = 'power'
+# root_dir = "/home/giulio/"
+root_dir = "/media/data-haydn/"
+dataset_type = 'entropy_overlapping_bands'
 seeds = range(5)
-#seeds = [87]
+# seeds = [87]
 
 test_predictions_runs = []
 aucs = []

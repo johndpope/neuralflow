@@ -1,6 +1,7 @@
 import abc
 
 import tensorflow as tf
+from neuralflow.utils.auc import auc
 
 
 class Monitor(object):
@@ -63,17 +64,22 @@ class AccuracyMonitor(Monitor):
 
 class RocMonitor(Monitor):
     def __init__(self, predictions, labels):
-        self.__auc_score, self.__auc_update_op = tf.contrib.metrics.streaming_auc(predictions=predictions,
-                                                                                  labels=labels,
-                                                                                  num_thresholds=200,
-                                                                                  metrics_collections=None,
-                                                                                  updates_collections=None,
-                                                                                  name="auc_monitor")
+        # self.__auc_score, self.__auc_update_op = tf.contrib.metrics.streaming_auc(predictions=predictions,
+        #                                                                           labels=labels,
+        #                                                                           num_thresholds=200,
+        #                                                                           metrics_collections=None,
+        #                                                                           updates_collections=None,
+        #                                                                           name="auc_monitor")
+
+        self.__auc_score = auc(predictions=predictions, labels=labels, num_thresholds=200, metrics_collections=None,
+                               name="auc_monitor")
+
         self.__summary = tf.scalar_summary('auc_score', self.__auc_score)
 
     @property
     def update_op(self):
-        return self.__auc_update_op
+        # return self.__auc_update_op
+        return []
 
     @property
     def summary(self):
@@ -82,6 +88,3 @@ class RocMonitor(Monitor):
     @property
     def value(self):
         return tf.cast(self.__auc_score, dtype=tf.float64)
-
-
-

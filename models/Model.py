@@ -30,19 +30,20 @@ class Model(object):
 
     def __init__(self):
         self.__meta_graph_saved = False
+        self.__saver = None
 
     def save(self, file: str, session: tf.Session):  # FIXME
         """save the model to file"""
-        self.__saver = tf.train.Saver(var_list=self.trainables)
 
-        self.__saver.save(session, file, write_meta_graph=False)
         if not self.__meta_graph_saved:
+            self.__saver = tf.train.Saver(var_list=self.trainables)
             tf.add_to_collection("net.out", self.output)
             tf.add_to_collection("net.in", self.input)
             os.makedirs(os.path.dirname(file), exist_ok=True)
             # Generates MetaGraphDef.
             self.__saver.export_meta_graph(file + ".meta")
             self.__meta_graph_saved = True
+        self.__saver.save(session, file, write_meta_graph=False)
 
 
 class ExternalInputModel(Model):
