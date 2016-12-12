@@ -9,6 +9,7 @@ class GradientDescent(Optimizer):
         self.__max_norm = max_norm
         self.__lr = lr
         self.__global_step = tf.Variable(0, trainable=False, dtype=tf.int32, name='global_step')
+
         self.__grads = tf.gradients(problem.objective_fnc_value, problem.trainables)
         clipped_grads, _ = tf.clip_by_global_norm(self.__grads,
                                                   clip_norm=self.__max_norm)  # TODO learning rate strategy

@@ -1,36 +1,50 @@
 import abc
+from typing import List
+
 import tensorflow as tf
 import os
 
 import time
 
+from models.Function import Function
 
-class Model(object):
+
+class Model:
     __metaclass__ = abc.ABCMeta
 
-    @abc.abstractproperty
-    def input(self):
-        """returns the placeholder for the inputs of the model"""
-
-    @abc.abstractproperty
-    def output(self):
-        """returns the placeholder for the outputs of the model"""
-
-    @abc.abstractproperty
-    def n_in(self):
-        """returns the dimension of the input"""
-
-    @abc.abstractproperty
-    def n_out(self):
-        """returns the dimension of the output"""
-
-    @abc.abstractproperty
-    def trainables(self):
-        """returns the list of trainable variables"""
-
-    def __init__(self):
+    def __init__(self, input, output, n_in, n_out, trainables: List[tf.Variable] = ()):
+        self.__input = input
+        self.__output = output
+        self.__n_in = n_in
+        self.__n_out = n_out
+        self.__trainables = trainables
         self.__meta_graph_saved = False
         self.__saver = None
+
+    @property
+    def input(self):
+        """:returns the placeholder for the inputs of the model"""
+        return self.__input
+
+    @property
+    def output(self):
+        """:returns the placeholder for the outputs of the model"""
+        return self.__output
+
+    @property
+    def n_in(self):
+        """:returns the dimension of the input"""
+        return self.__n_in
+
+    @property
+    def n_out(self):
+        """:returns the dimension of the output"""
+        return self.__n_out
+
+    @property
+    def trainables(self):
+        """:returns the list of trainable variables"""
+        return self.__trainables
 
     def save(self, file: str, session: tf.Session):  # FIXME
         """save the model to file"""
@@ -45,29 +59,13 @@ class Model(object):
             self.__meta_graph_saved = True
         self.__saver.save(session, file, write_meta_graph=False)
 
+    @staticmethod
+    def from_external_input(n_in: int, float_type="float32"):
+        input_placeholder = tf.placeholder(dtype=float_type, shape=(None, n_in), name="ExternalInput")
+        return Model(input=input_placeholder, output=input_placeholder, n_in=n_in, n_out=n_in, trainables=[])
 
-class ExternalInputModel(Model):
-    def __init__(self, n_in: int, float_type="float32"):
-        super().__init__()
-        self.__n_in = n_in
-        self.__input_placeholder = tf.placeholder(dtype=float_type, shape=(None, n_in), name="ExternalInput")
-
-    @property
-    def n_in(self):
-        return self.__n_in
-
-    @property
-    def n_out(self):
-        return self.__n_in
-
-    @property
-    def output(self):
-        return self.__input_placeholder
-
-    @property
-    def input(self):
-        return self.__input_placeholder
-
-    @property
-    def trainables(self):
-        return []
+    @staticmethod
+    def from_fnc(model, fnc: Function):
+        output = fnc.apply(model.output)
+        return Model(input=model.input, output=output, n_in=model.n_in, n_out=fnc.n_out,
+                     trainables=model.trainables + fnc.trainables)

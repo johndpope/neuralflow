@@ -46,3 +46,15 @@ class HingeLoss(LossFunction):
         t_ = t * 2 - 1
         c = tf.reduce_mean(tf.maximum(0., 1. - t_ * y), reduction_indices=[1])
         return tf.reduce_mean(c)
+
+
+class EpsilonInsensitiveLoss(LossFunction):
+    def __init__(self, epsilon:float=0.1, scale_fnc=lambda x: x):
+        self.__scale_fnc = scale_fnc
+        self.__epsilon = epsilon
+
+    def value(self, y, t):
+        c = tf.abs(self.__scale_fnc(y) - self.__scale_fnc(t)) - self.__epsilon
+        c = tf.maximum(0., c)
+        c = tf.reduce_mean(c, reduction_indices=[1])
+        return tf.reduce_mean(c)

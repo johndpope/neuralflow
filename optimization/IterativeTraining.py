@@ -76,14 +76,10 @@ class IterativeTraining(object):
         sess.run(tf.initialize_local_variables())
 
         stop = False
-        i = 0
+        i = 1
 
         t0 = time.time()
         while not stop:
-            if i % 100 == 0:
-                t1 = time.time()
-                print("Iteration: {}, time:{:.1f}s".format(i, t1 - t0))
-                t0 = t1
 
             train_dict = self.__problem.get_feed_dict()
             sess.run(train_step, feed_dict=train_dict)
@@ -112,6 +108,10 @@ class IterativeTraining(object):
                 tsave1 = time.time()
                 print("Best model found -> checkpoint saved ({:.2f}s)".format(tsave1 - tsave0))
 
+            if i % 100 == 0:
+                t1 = time.time()
+                print("Iteration: {}, time:{:.1f}s".format(i, t1 - t0))
+                t0 = t1
             i += 1
 
         print("Done.")

@@ -1,9 +1,8 @@
 import numpy
 import numpy as np
 import tensorflow as tf
-from SessionManager import SessionManager
 from math_utils import norm
-from models.Model import ExternalInputModel
+from models.Model import Model
 from neuralflow import BatchProducer
 from neuralflow import GaussianInitialization
 from neuralflow import ValidationProducer
@@ -88,16 +87,20 @@ def define_problem(dataset, output_dir):
     output_layer_prod = StandardLayerProducer(n_units=n_out, initialization=GaussianInitialization(mean=0, std_dev=0.1),
                                               activation_fnc=SoftmaxActivationFunction(single_output=False))
 
-    net = FeedForwardNeuralNet(input_model=ExternalInputModel(n_in=n_in))
+    net = FeedForwardNeuralNet(n_in=n_in)
     net.add_layer(hidden_layer_prod)
-    #net.add_layer(hidden_layer_prod)
+    # net.add_layer(hidden_layer_prod)
     net.add_layer(rbf_layer_producer)
     net.add_layer(output_layer_prod)
+
+    external_input = Model.from_external_input(n_in=n_in)
+
+    model = Model.from_fnc(model=external_input, fnc=net)
 
     # objective function
     loss_fnc = CrossEntropy(single_output=False)
 
-    problem = SupervisedOptimizationProblem(model=net, loss_fnc=loss_fnc, batch_producer=dataset, batch_size=20)
+    problem = SupervisedOptimizationProblem(model=model, loss_fnc=loss_fnc, batch_producer=dataset, batch_size=20)
     # optimizer
     optimizer = GradientDescent(lr=0.01, problem=problem)
     # training
@@ -105,7 +108,7 @@ def define_problem(dataset, output_dir):
 
     # monitors
     grad_monitor = ScalarMonitor(name="grad_norm", variable=norm(optimizer.gradient, norm_type="l2"))
-    accuracy_monitor = AccuracyMonitor(predictions=net.output, labels=problem.labels)
+    accuracy_monitor = AccuracyMonitor(predictions=model.output, labels=problem.labels)
     loss_monitor = ScalarMonitor(name="loss", variable=problem.objective_fnc_value)
 
     max_no_improve = MaxNoImproveCriterion(monitor=loss_monitor, max_no_improve=50, direction="<")
@@ -117,12 +120,12 @@ def define_problem(dataset, output_dir):
 
     validation_batch = dataset.get_validation()
     training.add_monitors_and_criteria(monitors=[loss_monitor, accuracy_monitor], freq=100, name="validation",
-                                       feed_dict={net.input: validation_batch["input"],
+                                       feed_dict={model.input: validation_batch["input"],
                                                   problem.labels: validation_batch["output"]},
                                        stopping_criteria=[max_no_improve], saving_criteria=[value_improved_criterion])
     training.add_monitors_and_criteria(monitors=[grad_monitor], freq=100, name="train_batch")
 
-    return training, net
+    return training, model
 
 
 if __name__ == "__main__":
@@ -132,17 +135,17 @@ if __name__ == "__main__":
 
     output_dir = "/home/giulio/tensorBoards/"
 
-    training, net = define_problem(dataset, output_dir)
+    training, model = define_problem(dataset, output_dir)
     sess = tf.Session()
     training.train(sess=sess)
-    #sess.close()
+    # sess.close()
 
     new_saver = tf.train.import_meta_graph(output_dir + 'best_checkpoint.meta')
     new_saver.restore(sess, output_dir + 'best_checkpoint')
 
     net_out = tf.get_collection("net.out")[0]  # XXX
     net_in = tf.get_collection("net.in")[0]
-    out = sess.run(net.output, feed_dict={net.input: dataset.get_test()["input"]})
+    out = sess.run(model.output, feed_dict={model.input: dataset.get_test()["input"]})
 
     score = accuracy_score(y_true=numpy.argmax(dataset.get_test()["output"], axis=1), y_pred=numpy.argmax(out, axis=1))
     sess.close()
