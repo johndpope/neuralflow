@@ -1,12 +1,8 @@
 import abc
-from typing import List
-
 import tensorflow as tf
 import os
-
-import time
-
 from models.Function import Function
+from typing import List
 
 
 class Model:
@@ -46,18 +42,18 @@ class Model:
         """:returns the list of trainable variables"""
         return self.__trainables
 
-    def save(self, file: str, session: tf.Session):  # FIXME
+    def save(self, file: str, session: tf.Session, id:int=0):  # FIXME
         """save the model to file"""
 
         if not self.__meta_graph_saved:
             self.__saver = tf.train.Saver(var_list=self.trainables)
-            tf.add_to_collection("net.out", self.output)
-            tf.add_to_collection("net.in", self.input)
+            tf.add_to_collection("model_{}.out".format(id), self.output)
+            tf.add_to_collection("model_{}.in".format(id), self.input)
             os.makedirs(os.path.dirname(file), exist_ok=True)
             # Generates MetaGraphDef.
-            self.__saver.export_meta_graph(file + ".meta")
+            self.__saver.export_meta_graph(file + "_{}.meta".format(id))
             self.__meta_graph_saved = True
-        self.__saver.save(session, file, write_meta_graph=False)
+        self.__saver.save(session, file + "_{}".format(id), write_meta_graph=False)
 
     @staticmethod
     def from_external_input(n_in: int, float_type="float32"):

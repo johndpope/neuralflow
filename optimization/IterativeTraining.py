@@ -1,7 +1,9 @@
-from typing import List
-
+import datetime
 import tensorflow as tf
 import time
+import os
+import logging
+from typing import List
 from neuralflow.optimization.Monitor import Monitor
 from neuralflow.optimization.OptimizationProblem import OptimizationProblem
 from neuralflow.optimization.Criterion import Criterion, NullCriterion
@@ -16,6 +18,7 @@ class IterativeTraining(object):
 
         self.__monitor_dict = {}
         self.__output_dir = output_dir + "/"
+        self.__log_filename = self.__output_dir + 'train.log'
 
     def add_monitors_and_criteria(self, name: str, freq: int, monitors: List[Monitor],
                                   saving_criteria: List[Criterion] = (),
@@ -53,17 +56,26 @@ class IterativeTraining(object):
         for m in self.__monitor_dict.values():
             m["writer"] = tf.train.SummaryWriter(self.__output_dir + m["name"], sess.graph)
 
-    # @staticmethod
-    # def __parse_feed_output(dict, output):
-    #     stop_crit_res = output[-1]
-    #     n = len(output) - len(dict["saving_criteria"])-1
-    #     save_crit_res = output[n]
-    #     n -= len(dict["stopping_criteria"])
-    #     summary = output[n]
-    #     return summary, save_crit_res, stop_crit_res
+    def __start_logger(self):
+        os.makedirs(self.__output_dir, exist_ok=True)
+
+        file_handler = logging.FileHandler(filename=self.__log_filename, mode='a')
+        formatter = logging.Formatter('%(levelname)s:%(message)s')
+        file_handler.setFormatter(formatter)
+
+        logger = logging.getLogger('rnn.train' + self.__output_dir)
+        logger.setLevel(logging.INFO)
+
+        for hdlr in logger.handlers:  # remove all old handlers
+            logger.removeHandler(hdlr)
+        logger.addHandler(file_handler)  # set the new handler
+        now = datetime.datetime.now()
+        logger.info('starting logging activity in date {}'.format(now.strftime("%d-%m-%Y %H:%M")))
+        return logger
 
     def train(self, sess: tf.Session):
-        print("Beginning training...")
+        logger = self.__start_logger()
+        logger.info("Beginning training...")
 
         # train step
         train_step = self.__optimizer.train_op
@@ -78,6 +90,7 @@ class IterativeTraining(object):
         stop = False
         i = 1
 
+        start_time = time.time()
         t0 = time.time()
         while not stop:
 
@@ -94,24 +107,24 @@ class IterativeTraining(object):
                                       feed_dict=train_dict if m["feed_dict"] is None else m["feed_dict"])
                     # output[-1]
                     summary, save_crit_res, stop_crit_res = output[0], output[2], output[3]
-                    if m["name"] == "validation": print(m["name"], output[2][0][0])
+                    if m["name"] == "validation": logger.info("{} {}".format(m["name"], output[2][0][0]))
                     m["writer"].add_summary(summary, i)
                     if IterativeTraining.__criteria_satisfied(save_crit_res):
                         save = True
 
                     if i == self.__max_it or IterativeTraining.__criteria_satisfied(stop_crit_res):
-                        print("Stopping criterion satisfied")
+                        logger.info("Stopping criterion satisfied")
                         stop = True
             if save:
                 tsave0 = time.time()
                 self.__problem.save_check_point(file=self.__output_dir + "best_checkpoint", session=sess)
                 tsave1 = time.time()
-                print("Best model found -> checkpoint saved ({:.2f}s)".format(tsave1 - tsave0))
+                logger.info("Best model found -> checkpoint saved ({:.2f}s)".format(tsave1 - tsave0))
 
             if i % 100 == 0:
                 t1 = time.time()
-                print("Iteration: {}, time:{:.1f}s".format(i, t1 - t0))
+                logger.info("Iteration: {}, time:{:.1f}s".format(i, t1 - t0))
                 t0 = t1
             i += 1
 
-        print("Done.")
+        logger.info("Done. (Training time:{:.1f}m)".format((time.time() - start_time) / 60))

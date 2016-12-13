@@ -34,5 +34,5 @@ class SupervisedOptimizationProblem(OptimizationProblem):
     def trainables(self):
         return self.__model.trainables
 
-    def save_check_point(self, file:str, session:tf.Session):
-        self.__model.save(file, session)
+    def save_check_point(self, file: str, session: tf.Session, id: int = 0):
+        self.__model.save(file, session, id)

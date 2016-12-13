@@ -6,7 +6,14 @@ import numpy as np
 
 
 class EnelDataset(BatchProducer, ValidationProducer):
-    def __init__(self, mat_file: str, seed: int, scale_y=True, name: str = "UnknownRegion"):
+    @staticmethod
+    def slice_hour(hour, x, y):
+
+        n = y.shape[0]
+        indexes = np.arange(hour, n, 24)
+        return x[indexes], y[indexes]
+
+    def __init__(self, mat_file: str, seed: int, scale_y=True, name: str = "UnknownRegion", hour: int = -1):
 
         self.__name = name
         mat_obj = loadmat(mat_file)
@@ -17,12 +24,18 @@ class EnelDataset(BatchProducer, ValidationProducer):
         y_train = mat_obj['Y_train']
         y_validation = mat_obj['Y_validation']
 
-        print("Y_train: ", y_train.shape)
-        print("Y_val :", y_validation.shape)
-
-        # mat_obj = loadmat("/home/giulio/datasets/enel_mats/SICI_by_hour_preprocessed.mat")
         x_test = mat_obj['X_test']
         y_test = mat_obj['Y_test']
+
+        print("Y_train: ", y_train.shape)
+        print("Y_val :", y_validation.shape)
+        print("Y_test :", y_test.shape)
+
+        if hour >= 0:
+            x_train, y_train = EnelDataset.slice_hour(hour, x=x_train, y=y_train)
+            x_validation, y_validation = EnelDataset.slice_hour(hour, x=x_validation, y=y_validation)
+            x_test, y_test = EnelDataset.slice_hour(hour, x=x_test, y=y_test)
+            self.__name += "_{}hh".format(hour+1)
 
         if scale_y:
             self.__y_scaler = preprocessing.StandardScaler().fit(y_train)

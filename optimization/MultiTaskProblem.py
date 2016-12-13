@@ -15,9 +15,9 @@ class MultiTaskProblem(OptimizationProblem):
             self.__trainables += p.trainables
         self.__trainables = list(set(self.__trainables))  # remove duplicates
 
-    def save_check_point(self, file: str, session: tf.Session):
+    def save_check_point(self, file: str, session: tf.Session, id: int = 0):
         for i, p in enumerate(self.__problems):
-            p.save_check_point("{}_i".format(file))
+            p.save_check_point(file, session, i)
 
     @property
     def trainables(self):
