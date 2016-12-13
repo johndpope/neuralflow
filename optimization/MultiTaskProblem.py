@@ -1,7 +1,7 @@
 from typing import Dict, List
 import tensorflow as tf
 
-from optimization.OptimizationProblem import OptimizationProblem
+from neuralflow.optimization.OptimizationProblem import OptimizationProblem
 
 
 class MultiTaskProblem(OptimizationProblem):

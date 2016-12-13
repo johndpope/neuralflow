@@ -1,7 +1,7 @@
 import abc
 import tensorflow as tf
 import os
-from models.Function import Function
+from neuralflow.models.Function import Function
 from typing import List
 
 

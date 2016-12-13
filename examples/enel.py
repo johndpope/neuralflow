@@ -8,7 +8,7 @@ from neuralflow import BatchProducer
 from neuralflow import GaussianInitialization
 
 from neuralflow.neuralnets.FeedForwardNeuralNet import FeedForwardNeuralNet
-from neuralnets.Layers import StandardLayerProducer, RBFLayerProducer
+from neuralflow.neuralnets.Layers import StandardLayerProducer, RBFLayerProducer
 from neuralflow.optimization.Monitor import ScalarMonitor
 from neuralflow.optimization.Criterion import ThresholdCriterion, MaxNoImproveCriterion, ImprovedValueCriterion
 from neuralflow.neuralnets.ActivationFunction import SoftmaxActivationFunction, IdentityFunction, ReLUActivationFunction
@@ -17,10 +17,10 @@ from neuralflow.neuralnets.LossFunction import CrossEntropy, SquaredError, MAE, 
 from neuralflow.optimization.IterativeTraining import IterativeTraining
 from neuralflow.optimization.SupervisedOptimizationProblem import SupervisedOptimizationProblem
 from neuralflow.optimization.GradientDescent import GradientDescent
-from optimization.MultiTaskProblem import MultiTaskProblem
+from neuralflow.optimization.MultiTaskProblem import MultiTaskProblem
 import time
 
-from utils.LatexExporter import LatexExporter
+from neuralflow.utils.LatexExporter import LatexExporter
 
 
 def define_datasets(root_dir):
@@ -30,7 +30,7 @@ def define_datasets(root_dir):
     #             EnelDataset(mat_file="/home/giulio/datasets/enel_mats/CSUD_by_hour_complete.mat", seed=12,
     #                         scale_y=scale_y, name="CSUD")
     #             ]
-    datasets = [EnelDataset(mat_file=root_dir+"/SUD_by_hour_complete.mat", seed=12,
+    datasets = [EnelDataset(mat_file=root_dir+"/SUD_by_hour_preprocessed.mat", seed=12,
                             scale_y=scale_y, name="SUD")]
 
     # datasets = []
@@ -201,7 +201,7 @@ def export_results(result_list, output_dir):
 
 
 if __name__ == "__main__":
-    root_dir = "/home/giulio/"
+    root_dir = "/home/galvan/"
     output_dir = root_dir+ "tensorBoards/enel/"
     dataset_dir = root_dir + "datasets/enel_mats/"
     datasets = define_datasets(dataset_dir)

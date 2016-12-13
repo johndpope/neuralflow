@@ -1,7 +1,7 @@
 from typing import List
 import tensorflow as tf
-from models.Function import Function
-from neuralnets.Layers import LayerProducer
+from neuralflow.models.Function import Function
+from neuralflow.neuralnets.Layers import LayerProducer
 
 
 class FeedForwardNeuralNet(Function):
