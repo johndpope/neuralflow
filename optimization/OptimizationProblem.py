@@ -23,5 +23,5 @@ class OptimizationProblem(FeedDictionaryProducer):
         """"""
 
     @abc.abstractmethod
-    def save_check_point(self, file: str, session: tf.Session, id: int = 0):
+    def save_check_point(self, output_dir: str, name:str, session: tf.Session):
         """"""

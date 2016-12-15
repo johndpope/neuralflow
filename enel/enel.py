@@ -1,10 +1,11 @@
 import numpy
 import numpy as np
 import tensorflow as tf
+from models.Estimator import Estimator
+from neuralflow.enel.Metrics import Metrics
 from neuralflow.enel.EnelDataset import EnelDataset
 from neuralflow.math_utils import norm
 from neuralflow.models.Model import Model
-from neuralflow import BatchProducer
 from neuralflow import GaussianInitialization
 
 from neuralflow.neuralnets.FeedForwardNeuralNet import FeedForwardNeuralNet
@@ -18,25 +19,26 @@ from neuralflow.optimization.IterativeTraining import IterativeTraining
 from neuralflow.optimization.SupervisedOptimizationProblem import SupervisedOptimizationProblem
 from neuralflow.optimization.GradientDescent import GradientDescent
 from neuralflow.optimization.MultiTaskProblem import MultiTaskProblem
-import time
+import pickle
 
 from neuralflow.utils.LatexExporter import LatexExporter
 
 
 def define_datasets(root_dir):
     scale_y = True
+
     # datasets = [EnelDataset(mat_file="/home/giulio/datasets/enel_mats/SUD_by_hour_complete.mat", seed=12,
     #                         scale_y=scale_y, name="SUD"),
     #             EnelDataset(mat_file="/home/giulio/datasets/enel_mats/CSUD_by_hour_complete.mat", seed=12,
     #                         scale_y=scale_y, name="CSUD")
     #             ]
-    datasets = [EnelDataset(mat_file=root_dir+"/SUD_by_hour_preprocessed.mat", seed=12,
-                            scale_y=scale_y, name="SUD")]
+    # datasets = [EnelDataset(mat_file=root_dir + "/SUD_by_day_preprocessed.mat", seed=12,
+    #                         scale_y=scale_y, name="SUD")]
 
-    # datasets = []
-    # for i in range(24):
-    #     datasets.append(EnelDataset(mat_file="/home/giulio/datasets/enel_mats/SUD_by_hour_preprocessed.mat", seed=12,
-    #                                 scale_y=scale_y, name="SUD", hour=i))
+    datasets = []
+    for i in range(24):
+        datasets.append(EnelDataset(mat_file=root_dir + "/SUD_by_day_preprocessed.mat", seed=12,
+                                    scale_y=scale_y, name="SUD", hours={"input":np.arange(24), "output":i}))
     return datasets
 
 
@@ -133,9 +135,18 @@ def attach_monitors(datasets, problems, models, training, multi_task_problem, op
     training.add_monitors_and_criteria(monitors=[grad_monitor], freq=freq, name="batch")
 
 
-def train_instance(datasets, parameters):
+def train_instance(datasets, parameters, train_type):
+    if train_type == "multi":
+        return train_multi_task(datasets, parameters)
+    elif train_type == "single":
+        return train_single_task(datasets, parameters)
+    else:
+        raise AttributeError("Unsupported train_type: {}".format(train_type))
+
+
+def train_multi_task(datasets, parameters):
     tf.reset_default_graph()
-    print("\tBeginning training instance...")
+    print("\tBeginning training instance (multi-task)...")
     print("\t" + str(parameters))
 
     output_dir = parameters["out_dir"] + str(parameters["id"])
@@ -164,54 +175,118 @@ def train_instance(datasets, parameters):
 
     sess = tf.Session()
     training.train(sess)
-    error = test_instance(datasets, output_dir, sess)
     sess.close()
 
-    return error
+    error_dict = test_instance(datasets, output_dir)
+
+    return error_dict
 
 
-def test_instance(datasets, output_dir, sess):
-    print("\tPerforming predictions...")
-    errors = []
+def train_single_task(datasets, parameters):
+    print("\tBeginning training instance (single task)...")
+    print("\t" + str(parameters))
+
+    output_dir = parameters["out_dir"] + str(parameters["id"])
+
     for i, dataset in enumerate(datasets):
-        new_saver = tf.train.import_meta_graph(output_dir + '/best_checkpoint_{}.meta'.format(i))
-        new_saver.restore(sess, output_dir + '/best_checkpoint_{}'.format(i))
+        tf.reset_default_graph()
 
-        net_out = tf.get_collection("model_{}.out".format(i))[0]  # XXX
-        net_in = tf.get_collection("model_{}.in".format(i))[0]
+        # objective function
+        loss_fnc = EpsilonInsensitiveLoss(parameters["eps"])
 
-        predictions = sess.run(net_out, feed_dict={net_in: dataset.get_test()["input"]})
-        labels = dataset.get_test()["output"]
+        core_net = define_core_network(n_in=parameters["n_in"], n_units=parameters["n_hidden"])
+        problem, model = define_task(core_net=core_net, dataset=dataset, name=dataset.name,
+                                     loss_fnc=loss_fnc)
 
-        labels = dataset.y_scaler.inverse_transform(labels)
-        predictions = dataset.y_scaler.inverse_transform(predictions)
+        # optimizer
+        optimizer = GradientDescent(lr=0.01, max_norm=0.5, problem=problem)
 
-        error = np.mean(abs(predictions - labels))
-        errors.append(error)
+        # training
+        training = IterativeTraining(max_it=10 ** 6, optimizer=optimizer, problem=problem,
+                                     output_dir=output_dir + "/{}/".format(i))
 
-    cumulative_error = np.mean(np.array(errors))
-    print("\tMAE: {}".format(cumulative_error))
-    return cumulative_error
+        attach_monitors(datasets=[dataset], models=[model], problems=[problem], training=training,
+                        multi_task_problem=problem, optimizer=optimizer)
+
+        sess = tf.Session()
+        training.train(sess)
+        sess.close()
+
+    error_dict = test_instance(datasets, output_dir)
+
+    return error_dict
+
+
+def __compute_error(predictions, labels):
+    result = {}
+    names = predictions.keys()
+    for name in names:
+        m = Metrics(predictions=np.concatenate(predictions[name]), labels=np.concatenate(labels[name]))
+        result.update({
+            "MAE_{}".format(name): round(m.MAE, 2),
+            "NRMSE_{}".format(name): round(m.NRMSE, 2),
+        })
+    return result
+
+
+def __get_predictions(estimator, data, scaler):
+    predictions = estimator.predict(data["input"])
+    labels = data["output"]
+
+    labels = scaler.inverse_transform(labels)
+    predictions = scaler.inverse_transform(predictions)
+
+    return predictions, labels
+
+
+def test_instance(datasets, output_dir):
+    print("\tPerforming predictions...")
+
+    predictions = {"Tr": [], "Ts": [], "Val": []}
+    labels = {"Tr": [], "Ts": [], "Val": []}
+
+    for i, dataset in enumerate(datasets):
+        in_out_keys = {"in": "model.in".format(i), "out": "model.out".format(i)}
+
+        estimator = Estimator.load_from_file(prefix_path=output_dir + '/{}/'.format(i), in_out_keys=in_out_keys)
+
+        p, l = __get_predictions(estimator, dataset.get_train(), dataset.y_scaler)
+        predictions["Tr"].append(p)
+        labels["Tr"].append(l)
+
+        p, l = __get_predictions(estimator, dataset.get_test(), dataset.y_scaler)
+        predictions["Ts"].append(p)
+        labels["Ts"].append(l)
+
+        p, l = __get_predictions(estimator, dataset.get_validation(), dataset.y_scaler)
+        predictions["Val"].append(p)
+        labels["Val"].append(l)
+
+    error_dict = __compute_error(predictions, labels)  # somma tutto insieme
+    print(error_dict)
+    return error_dict
 
 
 def export_results(result_list, output_dir):
-
-    exp = LatexExporter(filename=output_dir+"results")
+    exp = LatexExporter(filename=output_dir + "results")
     exp.export(result_list)
+    pickle.dump(result_list, open(output_dir + "results.pkl", "wb"))
 
 
 if __name__ == "__main__":
-    root_dir = "/home/galvan/"
-    output_dir = root_dir+ "tensorBoards/enel/"
+
+    train_type = "single"
+
+    root_dir = "/home/giulio/"
+    output_dir = root_dir + "tensorBoards/enel/by_day_{}/".format(train_type)
     dataset_dir = root_dir + "datasets/enel_mats/"
     datasets = define_datasets(dataset_dir)
-
     result_list = []
 
     id = 0
-    for eps in [0.1, 0.005, 0.001]:
+    for eps in [0.1, 0.05, 0.01]:
         for n_in in [25, 50, 100, 200, 300]:
-            for n_hidden in [25, 50, 100, 200, 300]:
+            for n_hidden in [25, 50, 100, 200]:
                 parameters = {
                     "id": id,
                     "eps": eps,
@@ -221,10 +296,10 @@ if __name__ == "__main__":
                 }
                 id += 1
                 print("Beginning instance {}...".format(id))
-                error = train_instance(datasets=datasets, parameters=parameters)
-                result_list.append({
+                error_dict = train_instance(datasets=datasets, parameters=parameters, train_type=train_type)
+                error_dict.update({
                     "eps": eps,
                     "n_in": n_in,
-                    "n_hidden": n_hidden,
-                    "MAE": "{:.2f}".format(error)})
+                    "n_hidden": n_hidden})
+                result_list.append(error_dict)
     export_results(result_list, output_dir)

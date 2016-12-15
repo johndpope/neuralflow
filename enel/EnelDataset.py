@@ -6,14 +6,23 @@ import numpy as np
 
 
 class EnelDataset(BatchProducer, ValidationProducer):
+
+    # @staticmethod
+    # def slice_hour(hour, x, y):
+    #
+    #     n = y.shape[0]
+    #     indexes = np.arange(hour, n, 24)
+    #     return x[indexes], y[indexes]
+
     @staticmethod
-    def slice_hour(hour, x, y):
+    def slice_hours(hours, x, y):
 
-        n = y.shape[0]
-        indexes = np.arange(hour, n, 24)
-        return x[indexes], y[indexes]
+        y_ = y[:, hours["output"]]
+        if len(y_.shape) == 1:
+            y_ = np.reshape(y_, newshape=(y_.shape[0], 1))
+        return x[:, hours["input"]], y_
 
-    def __init__(self, mat_file: str, seed: int, scale_y=True, name: str = "UnknownRegion", hour: int = -1):
+    def __init__(self, mat_file: str, seed: int, scale_y=True, name: str = "UnknownRegion", hours:dict=None):
 
         self.__name = name
         mat_obj = loadmat(mat_file)
@@ -31,11 +40,11 @@ class EnelDataset(BatchProducer, ValidationProducer):
         print("Y_val :", y_validation.shape)
         print("Y_test :", y_test.shape)
 
-        if hour >= 0:
-            x_train, y_train = EnelDataset.slice_hour(hour, x=x_train, y=y_train)
-            x_validation, y_validation = EnelDataset.slice_hour(hour, x=x_validation, y=y_validation)
-            x_test, y_test = EnelDataset.slice_hour(hour, x=x_test, y=y_test)
-            self.__name += "_{}hh".format(hour+1)
+        if hours is not None:
+            x_train, y_train = EnelDataset.slice_hours(hours, x=x_train, y=y_train)
+            x_validation, y_validation = EnelDataset.slice_hours(hours, x=x_validation, y=y_validation)
+            x_test, y_test = EnelDataset.slice_hours(hours, x=x_test, y=y_test)
+            self.__name += "_{}hh".format(hours["output"]+1)
 
         if scale_y:
             self.__y_scaler = preprocessing.StandardScaler().fit(y_train)

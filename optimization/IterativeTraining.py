@@ -117,7 +117,7 @@ class IterativeTraining(object):
                         stop = True
             if save:
                 tsave0 = time.time()
-                self.__problem.save_check_point(file=self.__output_dir + "best_checkpoint", session=sess)
+                self.__problem.save_check_point(output_dir=self.__output_dir, name="best_checkpoint", session=sess)
                 tsave1 = time.time()
                 logger.info("Best model found -> checkpoint saved ({:.2f}s)".format(tsave1 - tsave0))
 
