@@ -57,7 +57,8 @@ class RBFLayerProducer(LayerProducer):
 
     def get_layer(self, n_in: int, float_type, name: str):
         U = self.__initialization.get(size=(self.__n_units, 1, n_in))
-        beta = self.__initialization.get(size=(self.__n_units,))
+        # beta = self.__initialization.get(size=(self.__n_units,))
+        beta = np.ones(shape=(self.__n_units,))
 
         return RBFLayer(U=U, beta=beta, float_type=float_type, name=name)
 

@@ -1,3 +1,4 @@
+from neuralflow.enel.FeatureSelection import NullFeatureSelectionStrategy
 from neuralflow import BatchProducer
 from neuralflow import ValidationProducer
 from scipy.io import loadmat
@@ -6,7 +7,6 @@ import numpy as np
 
 
 class EnelDataset(BatchProducer, ValidationProducer):
-
     # @staticmethod
     # def slice_hour(hour, x, y):
     #
@@ -22,7 +22,8 @@ class EnelDataset(BatchProducer, ValidationProducer):
             y_ = np.reshape(y_, newshape=(y_.shape[0], 1))
         return x[:, hours["input"]], y_
 
-    def __init__(self, mat_file: str, seed: int, scale_y=True, name: str = "UnknownRegion", hours:dict=None):
+    def __init__(self, mat_file: str, seed: int, scale_y=True, name: str = "UnknownRegion", hours: dict = None,
+                 feats_strategy=NullFeatureSelectionStrategy()):
 
         self.__name = name
         mat_obj = loadmat(mat_file)
@@ -44,7 +45,7 @@ class EnelDataset(BatchProducer, ValidationProducer):
             x_train, y_train = EnelDataset.slice_hours(hours, x=x_train, y=y_train)
             x_validation, y_validation = EnelDataset.slice_hours(hours, x=x_validation, y=y_validation)
             x_test, y_test = EnelDataset.slice_hours(hours, x=x_test, y=y_test)
-            self.__name += "_{}hh".format(hours["output"]+1)
+            self.__name += "_{}hh".format(hours["output"] + 1)
 
         if scale_y:
             self.__y_scaler = preprocessing.StandardScaler().fit(y_train)
@@ -57,6 +58,16 @@ class EnelDataset(BatchProducer, ValidationProducer):
             self.__y_test = y_test
             self.__y_validation = y_validation
 
+        d1 = x_train.shape[1]
+        # feature selection
+        feats_sel = feats_strategy.train(x_train, self.__y_train)
+        self.__x_train = feats_sel.select(x_train)
+        self.__x_validation = feats_sel.select(x_validation)
+        self.__x_test = feats_sel.select(x_test)
+        d2 = self.__x_train.shape[1]
+        print("d1: {}, d2:{}".format(d1, d2))
+
+        # feature scaling
         x_scaler = preprocessing.StandardScaler().fit(x_train)
         self.__x_test = x_scaler.transform(x_test)
         self.__x_train = x_scaler.transform(x_train)

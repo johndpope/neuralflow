@@ -1,6 +1,7 @@
 import numpy
 import numpy as np
 import tensorflow as tf
+from neuralflow.enel.FeatureSelection import PrecomputedFeatureSelectionStrategy, VarianceThresholdStrategy
 from models.Estimator import Estimator
 from neuralflow.enel.Metrics import Metrics
 from neuralflow.enel.EnelDataset import EnelDataset
@@ -32,19 +33,25 @@ def define_datasets(root_dir):
     #             EnelDataset(mat_file="/home/giulio/datasets/enel_mats/CSUD_by_hour_complete.mat", seed=12,
     #                         scale_y=scale_y, name="CSUD")
     #             ]
-    # datasets = [EnelDataset(mat_file=root_dir + "/SUD_by_day_preprocessed.mat", seed=12,
-    #                         scale_y=scale_y, name="SUD")]
 
-    datasets = []
-    for i in range(24):
-        datasets.append(EnelDataset(mat_file=root_dir + "/SUD_by_day_preprocessed.mat", seed=12,
-                                    scale_y=scale_y, name="SUD", hours={"input":np.arange(24), "output":i}))
+    feats_strategy = PrecomputedFeatureSelectionStrategy(csv="/media/homegalvan/EnelNew/feature_sel/cbf98865.csv")
+    feats_strategy = VarianceThresholdStrategy()
+
+    datasets = [EnelDataset(mat_file=root_dir + "/SUD_by_day_complete.mat", seed=12,
+                            scale_y=scale_y, name="SUD", feats_strategy=feats_strategy)]
+
+    # datasets = []
+    # for i in range(24):
+    #     datasets.append(EnelDataset(mat_file=root_dir + "/SUD_by_day_preprocessed.mat", seed=12,
+    #                                 scale_y=scale_y, name="SUD", hours={"input":np.arange(24), "output":i}))
     return datasets
 
 
 def define_core_network(n_in: int, n_units: int):
     layer_prod_1 = StandardLayerProducer(n_units=n_units, initialization=GaussianInitialization(mean=0, std_dev=0.1),
                                          activation_fnc=TanhActivationFunction())
+
+    # layer_prod_1 = RBFLayerProducer(n_units=n_units, initialization=GaussianInitialization(mean=0, std_dev=0.1))
 
     net = FeedForwardNeuralNet(n_in, name="common")
     net.add_layer(layer_prod_1)
@@ -124,7 +131,7 @@ def attach_monitors(datasets, problems, models, training, multi_task_problem, op
     training.add_monitors_and_criteria(monitors=[grad_monitor], freq=freq, name="batch")
 
     multi_task_loss_monitor = ScalarMonitor(name="loss", variable=multi_task_problem.objective_fnc_value)
-    stopping_criterion = MaxNoImproveCriterion(monitor=multi_task_loss_monitor, max_no_improve=30, direction='<')
+    stopping_criterion = MaxNoImproveCriterion(monitor=multi_task_loss_monitor, max_no_improve=40, direction='<')
     saving_criterion = ImprovedValueCriterion(monitor=multi_task_loss_monitor, direction='<')
 
     training.add_monitors_and_criteria(monitors=train_monitors, freq=freq, name="train", feed_dict=feed_dict_train)
@@ -278,15 +285,15 @@ if __name__ == "__main__":
     train_type = "single"
 
     root_dir = "/home/giulio/"
-    output_dir = root_dir + "tensorBoards/enel/by_day_{}/".format(train_type)
+    output_dir = root_dir + "tensorBoards/enel/24_24_complete+variance_{}/".format(train_type)
     dataset_dir = root_dir + "datasets/enel_mats/"
     datasets = define_datasets(dataset_dir)
     result_list = []
 
     id = 0
-    for eps in [0.1, 0.05, 0.01]:
-        for n_in in [25, 50, 100, 200, 300]:
-            for n_hidden in [25, 50, 100, 200]:
+    for eps in [0.05, 0.01]:
+        for n_in in [25, 50, 100, 200, 300, 500]:
+            for n_hidden in [25, 50, 100, 200, 500]:
                 parameters = {
                     "id": id,
                     "eps": eps,
