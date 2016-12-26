@@ -7,7 +7,7 @@ from neuralflow.neuralnets.Layers import LayerProducer
 class FeedForwardNeuralNet(Function):
     layer_name_proto = "{}_Layer_{}"
 
-    def __init__(self, n_in, layer_producers: List[LayerProducer] = (), float_type=tf.float32, name:str=""):
+    def __init__(self, n_in, layer_producers: List[LayerProducer] = (), float_type=tf.float32, name: str = "UnNamed_NN"):
         super().__init__()
         assert len(layer_producers) >= 0
         self.__float_type = float_type
@@ -23,7 +23,8 @@ class FeedForwardNeuralNet(Function):
 
     def add_layer(self, layer_producer: LayerProducer):
         l = layer_producer.get_layer(n_in=self.__n_out, float_type=self.__float_type,
-                                     name=FeedForwardNeuralNet.layer_name_proto.format(self.__name, len(self.__layers) + 1))
+                                     name=FeedForwardNeuralNet.layer_name_proto.format(self.__name,
+                                                                                       len(self.__layers) + 1))
         self.__trainables += l.trainables
         self.__layers.append(l)
         self.__n_out = l.n_out

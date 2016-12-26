@@ -1,6 +1,6 @@
 import tensorflow as tf
+from Dataset import BatchProducer
 from neuralflow.models.Model import Model
-from neuralflow import BatchProducer
 from neuralflow.neuralnets.LossFunction import LossFunction
 from neuralflow.optimization.OptimizationProblem import OptimizationProblem
 

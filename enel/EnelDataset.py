@@ -1,6 +1,5 @@
+from neuralflow.Dataset import BatchProducer, ValidationProducer
 from neuralflow.enel.FeatureSelection import NullFeatureSelectionStrategy
-from neuralflow import BatchProducer
-from neuralflow import ValidationProducer
 from scipy.io import loadmat
 from sklearn import preprocessing
 import numpy as np

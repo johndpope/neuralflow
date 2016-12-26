@@ -1,11 +1,10 @@
 import numpy
 import numpy as np
 import tensorflow as tf
-from math_utils import norm
+from neuralflow.Dataset import ValidationProducer, BatchProducer
+from neuralflow.TensorInitilization import GaussianInitialization
+from neuralflow.math_utils import norm
 from models.Model import Model
-from neuralflow import BatchProducer
-from neuralflow import GaussianInitialization
-from neuralflow import ValidationProducer
 
 from neuralflow.neuralnets.FeedForwardNeuralNet import FeedForwardNeuralNet
 from neuralnets.Layers import StandardLayerProducer, RBFLayerProducer
@@ -143,8 +142,8 @@ if __name__ == "__main__":
     new_saver = tf.train.import_meta_graph(output_dir + 'best_checkpoint.meta')
     new_saver.restore(sess, output_dir + 'best_checkpoint')
 
-    net_out = tf.get_collection("net.out")[0]  # XXX
-    net_in = tf.get_collection("net.in")[0]
+    net_out = tf.get_collection("model.out")[0]  # XXX
+    net_in = tf.get_collection("model.in")[0]
     out = sess.run(model.output, feed_dict={model.input: dataset.get_test()["input"]})
 
     score = accuracy_score(y_true=numpy.argmax(dataset.get_test()["output"], axis=1), y_pred=numpy.argmax(out, axis=1))

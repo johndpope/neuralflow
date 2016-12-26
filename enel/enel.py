@@ -1,5 +1,6 @@
 import numpy as np
 import tensorflow as tf
+from neuralflow.TensorInitilization import GaussianInitialization
 from neuralflow.enel.utils import export_results
 from neuralflow.enel.FeatureSelection import PrecomputedFeatureSelectionStrategy, VarianceThresholdStrategy
 from neuralflow.models.Estimator import Estimator
@@ -7,7 +8,6 @@ from neuralflow.enel.Metrics import Metrics
 from neuralflow.enel.EnelDataset import EnelDataset
 from neuralflow.math_utils import norm
 from neuralflow.models.Model import Model
-from neuralflow import GaussianInitialization
 
 from neuralflow.neuralnets.FeedForwardNeuralNet import FeedForwardNeuralNet
 from neuralflow.neuralnets.Layers import StandardLayerProducer, RBFLayerProducer
