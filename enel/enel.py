@@ -1,8 +1,8 @@
-import numpy
 import numpy as np
 import tensorflow as tf
+from neuralflow.enel.utils import export_results
 from neuralflow.enel.FeatureSelection import PrecomputedFeatureSelectionStrategy, VarianceThresholdStrategy
-from models.Estimator import Estimator
+from neuralflow.models.Estimator import Estimator
 from neuralflow.enel.Metrics import Metrics
 from neuralflow.enel.EnelDataset import EnelDataset
 from neuralflow.math_utils import norm
@@ -274,17 +274,14 @@ def test_instance(datasets, output_dir):
     return error_dict
 
 
-def export_results(result_list, output_dir):
-    exp = LatexExporter(filename=output_dir + "results")
-    exp.export(result_list)
-    pickle.dump(result_list, open(output_dir + "results.pkl", "wb"))
+
 
 
 if __name__ == "__main__":
 
     train_type = "single"
 
-    root_dir = "/home/giulio/"
+    root_dir = "/home/galvan/"
     output_dir = root_dir + "tensorBoards/enel/24_24_complete+variance_{}/".format(train_type)
     dataset_dir = root_dir + "datasets/enel_mats/"
     datasets = define_datasets(dataset_dir)

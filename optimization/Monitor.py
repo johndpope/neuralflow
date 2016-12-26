@@ -23,7 +23,7 @@ class Monitor(object):
 class ScalarMonitor(Monitor):
     def __init__(self, variable, name: str):
         self.__variable = variable
-        self.__summary = tf.scalar_summary(name, variable)
+        self.__summary = tf.summary.scalar(name, variable)
         self.__stored_value = tf.Variable(0., dtype='float64', name='ScalarMonitor')
 
     @property

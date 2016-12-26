@@ -25,7 +25,7 @@ class IterativeTraining(object):
                                   stopping_criteria: List[Criterion] = (), feed_dict: dict = None):
         assert (freq > 0)
         self.__monitor_dict[str(freq) + str(name)] = {
-            "summary": tf.merge_summary([m.summary for m in monitors], name="merged_summary_" + name),
+            "summary": tf.summary.merge([m.summary for m in monitors], name="merged_summary_" + name),
             "feed_dict": feed_dict,
             "freq": freq,
             "name": name,
@@ -54,7 +54,7 @@ class IterativeTraining(object):
 
     def __init_writers(self, sess):
         for m in self.__monitor_dict.values():
-            m["writer"] = tf.train.SummaryWriter(self.__output_dir + m["name"], sess.graph)
+            m["writer"] = tf.summary.FileWriter(self.__output_dir + m["name"], sess.graph)
 
     def __start_logger(self):
         os.makedirs(self.__output_dir, exist_ok=True)
@@ -84,8 +84,8 @@ class IterativeTraining(object):
 
         self.__init_writers(sess)
 
-        sess.run(tf.initialize_all_variables())  # TODO spostare?
-        sess.run(tf.initialize_local_variables())
+        sess.run(tf.local_variables_initializer())  # TODO spostare?
+        sess.run(tf.global_variables_initializer())
 
         stop = False
         i = 1
