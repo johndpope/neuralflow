@@ -1,8 +1,11 @@
+import shutil
+
 import numpy as np
 import tensorflow as tf
 from neuralflow.TensorInitilization import GaussianInitialization
 from neuralflow.enel.utils import export_results
-from neuralflow.enel.FeatureSelection import PrecomputedFeatureSelectionStrategy, VarianceThresholdStrategy
+from neuralflow.enel.FeatureSelection import PrecomputedFeatureSelectionStrategy, VarianceThresholdStrategy, \
+    NullFeatureSelectionStrategy
 from neuralflow.models.Estimator import Estimator
 from neuralflow.enel.Metrics import Metrics
 from neuralflow.enel.EnelDataset import EnelDataset
@@ -36,8 +39,9 @@ def define_datasets(root_dir):
 
     feats_strategy = PrecomputedFeatureSelectionStrategy(csv="/media/homegalvan/EnelNew/feature_sel/cbf98865.csv")
     feats_strategy = VarianceThresholdStrategy()
+    feats_strategy = NullFeatureSelectionStrategy()
 
-    datasets = [EnelDataset(mat_file=root_dir + "/SUD_by_day_complete.mat", seed=12,
+    datasets = [EnelDataset(mat_file=root_dir + "/SUD_by_hour_preprocessed.mat", seed=12,
                             scale_y=scale_y, name="SUD", feats_strategy=feats_strategy)]
 
     # datasets = []
@@ -48,14 +52,18 @@ def define_datasets(root_dir):
 
 
 def define_core_network(n_in: int, n_units: int):
-    layer_prod_1 = StandardLayerProducer(n_units=n_units, initialization=GaussianInitialization(mean=0, std_dev=0.1),
-                                         activation_fnc=TanhActivationFunction())
+    if n_in > 0:
+        layer_prod_1 = StandardLayerProducer(n_units=n_units,
+                                             initialization=GaussianInitialization(mean=0, std_dev=0.1),
+                                             activation_fnc=TanhActivationFunction())
 
-    # layer_prod_1 = RBFLayerProducer(n_units=n_units, initialization=GaussianInitialization(mean=0, std_dev=0.1))
+        # layer_prod_1 = RBFLayerProducer(n_units=n_units, initialization=GaussianInitialization(mean=0, std_dev=0.1))
 
-    net = FeedForwardNeuralNet(n_in, name="common")
-    net.add_layer(layer_prod_1)
-    return net
+        net = FeedForwardNeuralNet(n_in, name="common")
+        net.add_layer(layer_prod_1)
+        return net
+    else:
+        return None
 
 
 def define_task(core_net, dataset, name, loss_fnc):
@@ -63,22 +71,25 @@ def define_task(core_net, dataset, name, loss_fnc):
     n_in, n_out = example["input"].shape[1], example["output"].shape[1]
     print("\t {}-> n_in:{}, n_out:{}".format(dataset.name, n_in, n_out))
 
-    input_layer = StandardLayerProducer(n_units=core_net.n_in,
+    n_hid_first = core_net.n_in if core_net is not None else parameters["n_hid_2"]
+
+    hid_layer_1 = StandardLayerProducer(n_units=n_hid_first,
                                         initialization=GaussianInitialization(mean=0, std_dev=0.1),
                                         activation_fnc=TanhActivationFunction())
 
     input_net = FeedForwardNeuralNet(n_in=n_in,
-                                     layer_producers=[input_layer], name="input_" + name)
+                                     layer_producers=[hid_layer_1], name="input_" + name)
     # out_layer_1 = RBFLayerProducer(n_units=100, initialization=GaussianInitialization(mean=0, std_dev=0.1))
     out_layer_2 = StandardLayerProducer(n_units=n_out, initialization=GaussianInitialization(mean=0, std_dev=0.1),
                                         activation_fnc=IdentityFunction())
 
-    output_net = FeedForwardNeuralNet(n_in=core_net.n_out,
-                                      layer_producers=[out_layer_2], name="output_" + name)
-
     model = Model.from_external_input(n_in=n_in)
     model = Model.from_fnc(model=model, fnc=input_net)
-    model = Model.from_fnc(model=model, fnc=core_net)
+    if core_net is not None:
+        model = Model.from_fnc(model=model, fnc=core_net)
+
+    output_net = FeedForwardNeuralNet(n_in=model.n_out,
+                                      layer_producers=[out_layer_2], name="output_" + name)
     model = Model.from_fnc(model=model, fnc=output_net)
 
     batch_producer = dataset
@@ -159,6 +170,9 @@ def train_multi_task(datasets, parameters):
     output_dir = parameters["out_dir"] + str(parameters["id"])
     core_net = define_core_network(n_in=parameters["n_in"], n_units=parameters["n_hidden"])
 
+    if core_net is None:
+        raise ValueError("core _net must be defined in multi-task mode.")
+
     # objective function
     loss_fnc = EpsilonInsensitiveLoss(parameters["eps"])
 
@@ -201,7 +215,7 @@ def train_single_task(datasets, parameters):
         # objective function
         loss_fnc = EpsilonInsensitiveLoss(parameters["eps"])
 
-        core_net = define_core_network(n_in=parameters["n_in"], n_units=parameters["n_hidden"])
+        core_net = define_core_network(n_in=parameters["n_hid_1"], n_units=parameters["n_hid_2"])
         problem, model = define_task(core_net=core_net, dataset=dataset, name=dataset.name,
                                      loss_fnc=loss_fnc)
 
@@ -274,36 +288,52 @@ def test_instance(datasets, output_dir):
     return error_dict
 
 
-
-
-
 if __name__ == "__main__":
 
     train_type = "single"
 
-    root_dir = "/home/galvan/"
-    output_dir = root_dir + "tensorBoards/enel/24_24_complete+variance_{}/".format(train_type)
+    root_dir = "/home/giulio/"
+    output_dir = root_dir + "tensorBoards/enel/24_24_preprocessed_1_{}/".format(train_type)
     dataset_dir = root_dir + "datasets/enel_mats/"
     datasets = define_datasets(dataset_dir)
     result_list = []
 
+    shutil.rmtree(output_dir, ignore_errors=True)
+    param_list = []
     id = 0
-    for eps in [0.05, 0.01]:
-        for n_in in [25, 50, 100, 200, 300, 500]:
-            for n_hidden in [25, 50, 100, 200, 500]:
+
+    for eps in [0.01]:
+        for n_hid_1 in [25, 50, 100, 200, 300]:
+            for n_hid_2 in [25, 50, 100, 200, 300]:
                 parameters = {
                     "id": id,
                     "eps": eps,
-                    "n_in": n_in,
-                    "n_hidden": n_hidden,
+                    "n_hid_1": n_hid_1,
+                    "n_hid_2": n_hid_2,
                     "out_dir": output_dir
                 }
                 id += 1
-                print("Beginning instance {}...".format(id))
-                error_dict = train_instance(datasets=datasets, parameters=parameters, train_type=train_type)
-                error_dict.update({
-                    "eps": eps,
-                    "n_in": n_in,
-                    "n_hidden": n_hidden})
-                result_list.append(error_dict)
+                param_list.append(parameters)
+
+    # for eps in [0.01]:
+    #     for n_hidden in [25, 50, 100, 200, 500, 1000, 2000]:
+    #         parameters = {
+    #             "id": id,
+    #             "eps": eps,
+    #             "n_hid_1": 0,
+    #             "n_hid_2": n_hidden,
+    #             "out_dir": output_dir
+    #         }
+    #         id += 1
+    #         param_list.append(parameters)
+
+    for parameters in param_list:
+        print("Beginning instance {}...".format(id))
+        error_dict = train_instance(datasets=datasets, parameters=parameters, train_type=train_type)
+        error_dict.update({
+            "eps": parameters["eps"],
+            "n_in": parameters["n_hid_1"],
+            "n_hidden": parameters["n_hid_2"]})
+        result_list.append(error_dict)
+
     export_results(result_list, output_dir)

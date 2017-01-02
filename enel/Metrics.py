@@ -7,7 +7,7 @@ class Metrics:
         self.__labels = labels
 
     @property
-    def MAE(self):
+    def MAE(self): # TODO refactor
         return np.mean(abs(self.__predictions - self.__labels))
 
     @property

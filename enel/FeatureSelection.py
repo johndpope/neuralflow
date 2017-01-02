@@ -62,7 +62,7 @@ class VarianceThresholdStrategy(FeatureSelectionStrategy):
 
     def train(self, X, Y) -> FeatureSelection:
         # k = int(X.shape[1] * keep_ratio)
-        k = 1632
+        k = 200
 
         std = np.std(X, axis=0)
         sorted_indexes = np.argsort(std)

@@ -94,8 +94,13 @@ class IterativeTraining(object):
         t0 = time.time()
         while not stop:
 
+            # f1 = time.time()
             train_dict = self.__problem.get_feed_dict()
+            # f2 = time.time()
             sess.run(train_step, feed_dict=train_dict)
+            # f3 = time.time()
+            # print("train_dict_time: {:.2e}, run_time: {:.2e}".format(f2-f3, f2-f1))
+
 
             save = False
             for id in self.__monitor_dict.keys():

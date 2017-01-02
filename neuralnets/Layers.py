@@ -2,7 +2,7 @@ import abc
 
 import numpy as np
 import tensorflow as tf
-from TensorInitilization import TensorInitialization
+from neuralflow.TensorInitilization import TensorInitialization
 from neuralflow.neuralnets.ActivationFunction import ActivationFunction
 
 

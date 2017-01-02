@@ -47,6 +47,7 @@ class EnelDataset(BatchProducer, ValidationProducer):
             self.__name += "_{}hh".format(hours["output"] + 1)
 
         if scale_y:
+
             self.__y_scaler = preprocessing.StandardScaler().fit(y_train)
             self.__y_train = self.__y_scaler.transform(y_train)
             self.__y_validation = self.__y_scaler.transform(y_validation)
