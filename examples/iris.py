@@ -15,6 +15,7 @@ from neuralflow.neuralnets.ActivationFunction import TanhActivationFunction
 from neuralflow.neuralnets.LossFunction import CrossEntropy
 from neuralflow.optimization.IterativeTraining import IterativeTraining
 from neuralflow.optimization.SupervisedOptimizationProblem import SupervisedOptimizationProblem
+from optimization.Algorithm import SimpleAlgorithm
 from optimization.GradientDescent import GradientDescent
 from sklearn import preprocessing
 from sklearn.metrics import accuracy_score
@@ -101,12 +102,14 @@ def define_problem(dataset, output_dir):
 
     problem = SupervisedOptimizationProblem(model=model, loss_fnc=loss_fnc, batch_producer=dataset, batch_size=20)
     # optimizer
-    optimizer = GradientDescent(lr=0.01, problem=problem)
+    optimizing_step = GradientDescent(lr=0.01)
+
+    algorithm = SimpleAlgorithm(problem=problem, optimization_step=optimizing_step)
     # training
-    training = IterativeTraining(max_it=10 ** 6, optimizer=optimizer, problem=problem, output_dir=output_dir)
+    training = IterativeTraining(max_it=10 ** 6, algorithm=algorithm, output_dir=output_dir)
 
     # monitors
-    grad_monitor = ScalarMonitor(name="grad_norm", variable=norm(optimizer.gradient, norm_type="l2"))
+    grad_monitor = ScalarMonitor(name="grad_norm", variable=norm(algorithm.gradient, norm_type="l2"))
     accuracy_monitor = AccuracyMonitor(predictions=model.output, labels=problem.labels)
     loss_monitor = ScalarMonitor(name="loss", variable=problem.objective_fnc_value)
 
@@ -132,7 +135,7 @@ if __name__ == "__main__":
     csv_path = "./examples/"
     dataset = IrisDataset(csv_path=csv_path, seed=12)
 
-    output_dir = "/home/giulio/tensorBoards/"
+    output_dir = "/home/galvan/tensorBoards/"
 
     training, model = define_problem(dataset, output_dir)
     sess = tf.Session()

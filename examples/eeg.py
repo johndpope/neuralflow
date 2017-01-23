@@ -163,7 +163,7 @@ def define_problem(dataset, seed, output_dir):
     grad_monitor = ScalarMonitor(name="grad_norm", variable=norm(optimizer.gradient, norm_type="l2"))
 
     # training
-    training = IterativeTraining(max_it=10 * 4, optimizer=optimizer, problem=problem, output_dir=output_dir)
+    training = IterativeTraining(max_it=10 * 4, algorithm=optimizer, problem=problem, output_dir=output_dir)
 
     # monitors
     tr_roc_monitor = RocMonitor(predictions=net.output, labels=problem.labels)

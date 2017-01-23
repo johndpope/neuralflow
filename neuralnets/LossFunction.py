@@ -44,7 +44,8 @@ class MAE(LossFunction):
 class HingeLoss(LossFunction):
     def value(self, y, t):
         t_ = t * 2 - 1
-        c = tf.reduce_mean(tf.maximum(0., 1. - t_ * y), reduction_indices=[1])
+        y_ = y * 2 - 1
+        c = tf.reduce_mean(tf.maximum(0., 1. - t_ * y_), reduction_indices=[1])
         return tf.reduce_mean(c)
 
 

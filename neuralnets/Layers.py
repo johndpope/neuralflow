@@ -94,3 +94,29 @@ class StandardLayerProducer(LayerProducer):
         # W = np.zeros(shape=(n_in, self.__n_units))
         b = np.zeros(shape=(self.__n_units,))  # TODO passare da fuori
         return StandardLayer(W, b, self.__activation_fnc, float_type, name)
+
+
+class ElementwiseMulLayer(Layer):
+    def __init__(self, beta, float_type, name):
+        self.__beta = tf.Variable(initial_value=beta, name=name + '_beta', dtype=float_type)
+        self.__n_out = beta.shape[0]
+
+    @property
+    def n_out(self):
+        return self.__n_out
+
+    def output(self, input):
+        return self.__beta * input
+
+    @property
+    def trainables(self):
+        return [self.__beta]
+
+
+class ElementwiseMulLayerProducer(LayerProducer):
+    def __init__(self, initialization: TensorInitialization):
+        self.__initialization = initialization
+
+    def get_layer(self, n_in: int, float_type, name: str = 'Unknown_Layer'):
+        beta = self.__initialization.get(size=(n_in,))
+        return ElementwiseMulLayer(beta, float_type, name)

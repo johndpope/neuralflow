@@ -39,7 +39,7 @@ class ScalarMonitor(Monitor):
         return self.__summary
 
 
-class AccuracyMonitor(Monitor):
+class AccuracyMonitor(Monitor): # FIXME
     def __init__(self, predictions, labels):
         self.__accuracy, self.__update_op = tf.contrib.metrics.streaming_accuracy(predictions, labels,
                                                                                   weights=None,
@@ -47,7 +47,7 @@ class AccuracyMonitor(Monitor):
                                                                                   updates_collections=None,
                                                                                   name="accuracy_monitor")
 
-        self.__summary = tf.scalar_summary('accuracy', self.__accuracy)
+        self.__summary = tf.summary.scalar('accuracy', self.__accuracy)
 
     @property
     def value(self) -> float:

@@ -33,6 +33,7 @@ class SoftmaxActivationFunction(ActivationFunction):
     def apply(self, x: tf.Tensor):
         if self.__single_output:
             y = 1. / (1. + tf.exp(-x))
-            return (1. + y) / 2  # x should be 1-dimensional
+            # return (1. + y) / 2  # x should be 1-dimensional che è sta follia?
+            return y
         else:
             return tf.nn.softmax(x)

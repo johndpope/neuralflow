@@ -28,6 +28,7 @@ class FeedForwardNeuralNet(Function):
         self.__trainables += l.trainables
         self.__layers.append(l)
         self.__n_out = l.n_out
+        return self
 
     def apply(self, x):
         output = x

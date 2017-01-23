@@ -7,14 +7,14 @@ from typing import List
 from neuralflow.optimization.Monitor import Monitor
 from neuralflow.optimization.OptimizationProblem import OptimizationProblem
 from neuralflow.optimization.Criterion import Criterion, NullCriterion
-from neuralflow.optimization.Optimizer import Optimizer
+from neuralflow.optimization.OptimizationStep import OptimizationStep
+from neuralflow.optimization.Algorithm import Algorithm
 
 
 class IterativeTraining(object):
-    def __init__(self, max_it: int, optimizer: Optimizer, problem: OptimizationProblem, output_dir: str):
+    def __init__(self, max_it: int, algorithm: Algorithm, output_dir: str):
         self.__max_it = max_it
-        self.__optimizer = optimizer
-        self.__problem = problem
+        self.__algorithm = algorithm
 
         self.__monitor_dict = {}
         self.__output_dir = output_dir + "/"
@@ -63,13 +63,14 @@ class IterativeTraining(object):
         formatter = logging.Formatter('%(levelname)s:%(message)s')
         file_handler.setFormatter(formatter)
 
-        logger = logging.getLogger('rnn.train' + self.__output_dir)
+        logger = logging.getLogger('sgd_train' + self.__output_dir)
         logger.setLevel(logging.INFO)
 
         for hdlr in logger.handlers:  # remove all old handlers
             logger.removeHandler(hdlr)
         logger.addHandler(file_handler)  # set the new handler
         now = datetime.datetime.now()
+
         logger.info('starting logging activity in date {}'.format(now.strftime("%d-%m-%Y %H:%M")))
         return logger
 
@@ -77,11 +78,7 @@ class IterativeTraining(object):
         logger = self.__start_logger()
         logger.info("Beginning training...")
 
-        # train step
-        train_step = self.__optimizer.train_op
-
         # sess = tf.Session()
-
         self.__init_writers(sess)
 
         sess.run(tf.local_variables_initializer())  # TODO spostare?
@@ -94,13 +91,9 @@ class IterativeTraining(object):
         t0 = time.time()
         while not stop:
 
-            # f1 = time.time()
-            train_dict = self.__problem.get_feed_dict()
-            # f2 = time.time()
+            # train step
+            train_step, train_dict = self.__algorithm.get_train_op()
             sess.run(train_step, feed_dict=train_dict)
-            # f3 = time.time()
-            # print("train_dict_time: {:.2e}, run_time: {:.2e}".format(f2-f3, f2-f1))
-
 
             save = False
             for id in self.__monitor_dict.keys():
@@ -122,7 +115,7 @@ class IterativeTraining(object):
                         stop = True
             if save:
                 tsave0 = time.time()
-                self.__problem.save_check_point(output_dir=self.__output_dir, name="best_checkpoint", session=sess)
+                self.__algorithm.save_check_point(output_dir=self.__output_dir, name="best_checkpoint", session=sess)
                 tsave1 = time.time()
                 logger.info("Best model found -> checkpoint saved ({:.2f}s)".format(tsave1 - tsave0))
 
