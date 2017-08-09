@@ -19,7 +19,7 @@ class SupervisedOptimizationProblem(OptimizationProblem):
     @property
     def objective_fnc_value(self):
         vars = [tf.reshape(g, [-1]) for g in self.__trainables]
-        v = tf.concat(0, vars)
+        v = tf.concat(vars, 0)
 
         return self.__loss_fnc.value(self.__model.output, self.__t) + self.__lambda * tf.reduce_mean(tf.abs(v))
 

@@ -21,6 +21,6 @@ class GradientDescent(OptimizationStep):
         train_op = optimizer.apply_gradients(grad_var_pairs, global_step=global_step)
 
         grads = [tf.reshape(g, [-1]) for g in grads]
-        gradient = tf.concat(0, grads)
+        gradient = tf.concat(grads, 0)
 
         return train_op, gradient

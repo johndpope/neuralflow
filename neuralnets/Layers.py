@@ -42,7 +42,7 @@ class RBFLayer(Layer):
         return self.__n_out
 
     def output(self, input):
-        dist_matrix = tf.reduce_sum((tf.sub(input, self.__U)) ** 2, reduction_indices=2)
+        dist_matrix = tf.reduce_sum((tf.subtract(input, self.__U)) ** 2, reduction_indices=2)
         dist_matrix = tf.transpose(dist_matrix, [1, 0])
         return tf.exp(-dist_matrix * self.__beta)
 
