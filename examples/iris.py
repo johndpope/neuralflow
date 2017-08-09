@@ -1,6 +1,8 @@
 import numpy
 import numpy as np
 import tensorflow as tf
+from monitors.Criteria import MaxNoImproveCriterion, ImprovedValueCriterion
+from monitors.Quantity import FeedDict, PrimitiveQuantity, AccuracyMonitor2
 from neuralflow.Dataset import ValidationProducer, BatchProducer
 from neuralflow.TensorInitilization import GaussianInitialization
 from neuralflow.math_utils import norm
@@ -8,8 +10,6 @@ from models.Model import Model
 
 from neuralflow.neuralnets.FeedForwardNeuralNet import FeedForwardNeuralNet
 from neuralnets.Layers import StandardLayerProducer, RBFLayerProducer
-from neuralflow.optimization.Monitor import ScalarMonitor, AccuracyMonitor
-from neuralflow.optimization.Criterion import ThresholdCriterion, MaxNoImproveCriterion, ImprovedValueCriterion
 from neuralflow.neuralnets.ActivationFunction import SoftmaxActivationFunction
 from neuralflow.neuralnets.ActivationFunction import TanhActivationFunction
 from neuralflow.neuralnets.LossFunction import CrossEntropy
@@ -89,8 +89,8 @@ def define_problem(dataset, output_dir):
 
     net = FeedForwardNeuralNet(n_in=n_in)
     net.add_layer(hidden_layer_prod)
-    # net.add_layer(hidden_layer_prod)
-    net.add_layer(rbf_layer_producer)
+    net.add_layer(hidden_layer_prod)
+    # net.add_layer(rbf_layer_producer)
     net.add_layer(output_layer_prod)
 
     external_input = Model.from_external_input(n_in=n_in)
@@ -105,27 +105,40 @@ def define_problem(dataset, output_dir):
     optimizing_step = GradientDescent(lr=0.01)
 
     algorithm = SimpleAlgorithm(problem=problem, optimization_step=optimizing_step)
-    # training
-    training = IterativeTraining(max_it=10 ** 6, algorithm=algorithm, output_dir=output_dir)
 
     # monitors
-    grad_monitor = ScalarMonitor(name="grad_norm", variable=norm(algorithm.gradient, norm_type="l2"))
-    accuracy_monitor = AccuracyMonitor(predictions=model.output, labels=problem.labels)
-    loss_monitor = ScalarMonitor(name="loss", variable=problem.objective_fnc_value)
-
-    max_no_improve = MaxNoImproveCriterion(monitor=loss_monitor, max_no_improve=50, direction="<")
-
-    # saving criteria
-    value_improved_criterion = ImprovedValueCriterion(monitor=loss_monitor, direction="<")
-
-    # stopping_criterion = ThresholdCriterion(monitor=loss_monitor, thr=0.2, direction='<')
+    # grad_monitor = ScalarMonitor(name="grad_norm", variable=norm(algorithm.gradient, norm_type="l2"))
+    # accuracy_monitor = AccuracyMonitor(predictions=model.output, labels=problem.labels)
+    # loss_monitor = ScalarMonitor(name="loss", variable=problem.objective_fnc_value)
 
     validation_batch = dataset.get_validation()
-    training.add_monitors_and_criteria(monitors=[loss_monitor, accuracy_monitor], freq=100, name="validation",
-                                       feed_dict={model.input: validation_batch["input"],
-                                                  problem.labels: validation_batch["output"]},
-                                       stopping_criteria=[max_no_improve], saving_criteria=[value_improved_criterion])
-    training.add_monitors_and_criteria(monitors=[grad_monitor], freq=100, name="train_batch")
+    validation_feed = FeedDict(feed_dict={model.input: validation_batch["input"],
+                                          problem.labels: validation_batch["output"]}, freq=100, output_dir=output_dir,
+                               name="validation")
+
+    validation_y = PrimitiveQuantity(model.output, name="y_val")
+    validation_feed.add_quantity(validation_y)
+    acc_val_monitor = AccuracyMonitor2(validation_batch["output"])
+    validation_y.register(acc_val_monitor)
+
+    # training
+    training = IterativeTraining(max_it=10 ** 6, algorithm=algorithm, output_dir=output_dir,
+                                 feed_dicts=[validation_feed])
+
+    max_no_improve = MaxNoImproveCriterion(max_no_improve=50, direction="<", monitor=acc_val_monitor)
+    training.set_stop_criterion(max_no_improve)
+
+    # saving criteria
+    value_improved_criterion = ImprovedValueCriterion(monitor=acc_val_monitor, direction=">")
+    training.set_save_criterion(value_improved_criterion)
+
+    # # stopping_criterion = ThresholdCriterion(monitor=loss_monitor, thr=0.2, direction='<')
+    #
+    # training.add_monitors_and_criteria(monitors=[loss_monitor, accuracy_monitor], freq=100, name="validation",
+    #                                    feed_dict={model.input: validation_batch["input"],
+    #                                               problem.labels: validation_batch["output"]},
+    #                                    stopping_criteria=[max_no_improve], saving_criteria=[value_improved_criterion])
+    # training.add_monitors_and_criteria(monitors=[grad_monitor], freq=100, name="train_batch")
 
     return training, model
 
@@ -135,7 +148,7 @@ if __name__ == "__main__":
     csv_path = "./examples/"
     dataset = IrisDataset(csv_path=csv_path, seed=12)
 
-    output_dir = "/home/galvan/tensorBoards/"
+    output_dir = "/home/giulio/tensorBoards/"
 
     training, model = define_problem(dataset, output_dir)
     sess = tf.Session()

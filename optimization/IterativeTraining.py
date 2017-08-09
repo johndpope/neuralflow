@@ -4,57 +4,58 @@ import time
 import os
 import logging
 from typing import List
-from neuralflow.optimization.Monitor import Monitor
-from neuralflow.optimization.OptimizationProblem import OptimizationProblem
-from neuralflow.optimization.Criterion import Criterion, NullCriterion
-from neuralflow.optimization.OptimizationStep import OptimizationStep
+
+from monitors.Criteria import Criterion, NullCriterion
+from monitors.Quantity import FeedDict
 from neuralflow.optimization.Algorithm import Algorithm
 
 
-class IterativeTraining(object):
-    def __init__(self, max_it: int, algorithm: Algorithm, output_dir: str):
+class IterativeTraining:
+    def __init__(self, max_it: int, algorithm: Algorithm, output_dir: str, feed_dicts: List[FeedDict]):
         self.__max_it = max_it
         self.__algorithm = algorithm
-
-        self.__monitor_dict = {}
         self.__output_dir = output_dir + "/"
         self.__log_filename = self.__output_dir + 'train.log'
+        self.__feed_dicts = feed_dicts
+        self.__stop_crit = NullCriterion()
+        self.__save_crit = NullCriterion()
 
-    def add_monitors_and_criteria(self, name: str, freq: int, monitors: List[Monitor],
-                                  saving_criteria: List[Criterion] = (),
-                                  stopping_criteria: List[Criterion] = (), feed_dict: dict = None):
-        assert (freq > 0)
-        self.__monitor_dict[str(freq) + str(name)] = {
-            "summary": tf.summary.merge([m.summary for m in monitors], name="merged_summary_" + name),
-            "feed_dict": feed_dict,
-            "freq": freq,
-            "name": name,
-            "ops": [m.update_op for m in monitors if m.update_op is not None],
-            "saving_criteria": [NullCriterion().is_satisfied()] if len(saving_criteria) == 0 else  [c.is_satisfied() for
-                                                                                                    c in
-                                                                                                    saving_criteria],
-            "stopping_criteria": [NullCriterion().is_satisfied()] if len(stopping_criteria) == 0 else [c.is_satisfied()
-                                                                                                       for c in
-                                                                                                       stopping_criteria]
-        }
+    def set_stop_criterion(self, criterion: Criterion):
+        self.__stop_crit = criterion
 
-    # def set_saving_criterion(self, criteria: List[Criterion]):
-    #     self.__saving_criteria = criteria  # or like
+    def set_save_criterion(self, criterion: Criterion):
+        self.__save_crit = criterion
+
     #
-    # def set_stopping_criterion(self, criteria: List[Criterion]):
-    #     self.__stopping_criteria = criteria  # or like
+    # def add_monitors_and_criteria(self, name: str, freq: int, monitors: List[Monitor],
+    #                               saving_criteria: List[Criterion] = (),
+    #                               stopping_criteria: List[Criterion] = (), feed_dict: dict = None):
+    #     assert (freq > 0)
+    #     self.__monitor_dict[str(freq) + str(name)] = {
+    #         "summary": tf.summary.merge([m.summary for m in monitors], name="merged_summary_" + name),
+    #         "feed_dict": feed_dict,
+    #         "freq": freq,
+    #         "name": name,
+    #         "ops": [m.update_op for m in monitors if m.update_op is not None],
+    #         "saving_criteria": [NullCriterion().is_satisfied()] if len(saving_criteria) == 0 else  [c.is_satisfied() for
+    #                                                                                                 c in
+    #                                                                                                 saving_criteria],
+    #         "stopping_criteria": [NullCriterion().is_satisfied()] if len(stopping_criteria) == 0 else [c.is_satisfied()
+    #                                                                                                    for c in
+    #                                                                                                    stopping_criteria]
+    #     }
+    #
+    # @staticmethod
+    # def __criteria_satisfied(criteria_results):
+    #     """performs or of all criteria"""
+    #     result = False
+    #     for r in criteria_results:
+    #         result = result or r[-1]
+    #     return result
 
-    @staticmethod
-    def __criteria_satisfied(criteria_results):
-        """performs or of all criteria"""
-        result = False
-        for r in criteria_results:
-            result = result or r[-1]
-        return result
-
-    def __init_writers(self, sess):
-        for m in self.__monitor_dict.values():
-            m["writer"] = tf.summary.FileWriter(self.__output_dir + m["name"], sess.graph)
+    # def __init_writers(self, sess):
+    #     for m in self.__monitor_dict.values():
+    #         m["writer"] = tf.summary.FileWriter(self.__output_dir + m["name"], sess.graph)
 
     def __start_logger(self):
         os.makedirs(self.__output_dir, exist_ok=True)
@@ -79,7 +80,7 @@ class IterativeTraining(object):
         logger.info("Beginning training...")
 
         # sess = tf.Session()
-        self.__init_writers(sess)
+        # self.__init_writers(sess)
 
         sess.run(tf.local_variables_initializer())  # TODO spostare?
         sess.run(tf.global_variables_initializer())
@@ -95,25 +96,15 @@ class IterativeTraining(object):
             train_step, train_dict = self.__algorithm.get_train_op()
             sess.run(train_step, feed_dict=train_dict)
 
-            save = False
-            for id in self.__monitor_dict.keys():
-                m = self.__monitor_dict[id]
-                f = m["freq"]
-                if i % f == 0:
-                    run_list = [m["summary"], m["ops"], m["saving_criteria"], m["stopping_criteria"]]
-                    output = sess.run(run_list,
-                                      feed_dict=train_dict if m["feed_dict"] is None else m["feed_dict"])
-                    # output[-1]
-                    summary, save_crit_res, stop_crit_res = output[0], output[2], output[3]
-                    if m["name"] == "validation": logger.info("{} {}".format(m["name"], output[2][0][0]))
-                    m["writer"].add_summary(summary, i)
-                    if IterativeTraining.__criteria_satisfied(save_crit_res):
-                        save = True
+            for d in self.__feed_dicts:
+                d.feed(sess=sess, iteration=i)
 
-                    if i == self.__max_it or IterativeTraining.__criteria_satisfied(stop_crit_res):
-                        logger.info("Stopping criterion satisfied")
-                        stop = True
-            if save:
+            stop, _ = self.__stop_crit.is_satisfied()
+            if i == self.__max_it:
+                logger.info("Maximum number of iteration reached.")
+                stop = True
+            save, save_it = self.__save_crit.is_satisfied()
+            if save_it == i and save:
                 tsave0 = time.time()
                 self.__algorithm.save_check_point(output_dir=self.__output_dir, name="best_checkpoint", session=sess)
                 tsave1 = time.time()
