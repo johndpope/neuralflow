@@ -44,7 +44,7 @@ class RBFLayer(Layer):
     def output(self, input):
         dist_matrix = tf.reduce_sum((tf.sub(input, self.__U)) ** 2, reduction_indices=2)
         dist_matrix = tf.transpose(dist_matrix, [1, 0])
-        return self.__beta * tf.exp(-dist_matrix)
+        return tf.exp(-dist_matrix * self.__beta)
 
     @property
     def trainables(self):
@@ -120,3 +120,47 @@ class ElementwiseMulLayerProducer(LayerProducer):
     def get_layer(self, n_in: int, float_type, name: str = 'Unknown_Layer'):
         beta = self.__initialization.get(size=(n_in,))
         return ElementwiseMulLayer(beta, float_type, name)
+
+
+if __name__ == "__main__":
+    n_units = 5
+    n_in = 3
+
+    U_np = np.array([[1, 1, 1], [2, 2, 2], [3, 3, 3], [4, 4, 4], [5, 5, 5]])
+    U_np = np.reshape(U_np, newshape=(n_units, 1, n_in))
+    beta_np = np.array([1, 2, 3, 4, 5])
+    x_np = np.array([[1, 1, 1], [2, 2, 2]])
+
+    print("beta.shape: ", beta_np.shape)
+    print("U.shape: ", U_np.shape)
+    print("x.shape", x_np.shape)
+
+    x = tf.placeholder(dtype=tf.float32, shape=(None, n_in), name="ExternalInput")
+    U = tf.Variable(initial_value=U_np, name="U", dtype=tf.float32)
+    beta = tf.Variable(initial_value=beta_np, name="beta", dtype=tf.float32)
+
+    n_out = U_np.shape[0]
+
+    s = (tf.sub(x, U)) ** 2
+    dist_matrix = tf.reduce_sum(s, reduction_indices=2)
+    dist_matrix = tf.transpose(dist_matrix, [1, 0])
+
+    eb = dist_matrix * beta
+    e = tf.exp(-dist_matrix * beta)
+
+    sess = tf.Session()
+    sess.run(tf.local_variables_initializer())
+    sess.run(tf.global_variables_initializer())
+    result = sess.run(s, feed_dict={x: x_np})
+    print(result)
+    print(result.shape)
+
+    print("====")
+    print(U_np)
+    print("=====")
+    print(x_np)
+
+    print("?????")
+    result = sess.run(e, feed_dict={x: x_np})
+    print(result)
+    print(result.shape)

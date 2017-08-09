@@ -6,7 +6,7 @@ from neuralflow.optimization.OptimizationProblem import OptimizationProblem
 
 
 class SupervisedOptimizationProblem(OptimizationProblem):
-    def __init__(self, model: Model, loss_fnc: LossFunction, batch_producer: BatchProducer, batch_size: int, trainables:list=None, penalty=False):  # XXX batch producer
+    def __init__(self, model: Model, loss_fnc: LossFunction, batch_producer: BatchProducer, batch_size: int, trainables:list=None, penalty:float=0):  # XXX batch producer
         self.__model = model
         self.__loss_fnc = loss_fnc
         self.__batch_producer = batch_producer
@@ -14,14 +14,14 @@ class SupervisedOptimizationProblem(OptimizationProblem):
         self.__batch_size = batch_size
         self.__trainables = trainables if trainables is not None and len(trainables) > 0 else model.trainables
 
-        self.__lambda = 0.1 if penalty == None else 0
+        self.__lambda = penalty if penalty is not None else 0
 
     @property
     def objective_fnc_value(self):
         vars = [tf.reshape(g, [-1]) for g in self.__trainables]
         v = tf.concat(0, vars)
 
-        return self.__loss_fnc.value(self.__model.output, self.__t) + self.__lambda * tf.reduce_sum(tf.abs(v))
+        return self.__loss_fnc.value(self.__model.output, self.__t) + self.__lambda * tf.reduce_mean(tf.abs(v))
 
     def get_feed_dict(self):
         batch = self.__batch_producer.get_batch(batch_size=self.__batch_size)

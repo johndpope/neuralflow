@@ -7,15 +7,18 @@ from neuralflow.utils.auc import auc
 class Monitor(object):
     __metaclass__ = abc.ABCMeta
 
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def summary(self):
         """return a tf summary object"""
 
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def value(self) -> float:
         """return the last observed value for the monitored variable"""
 
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def update_op(self):
         """returns an operation that should be run to update the monitor. Could be None"""
 

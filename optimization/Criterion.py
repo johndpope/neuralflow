@@ -14,11 +14,11 @@ class Criterion(object):
         """returns True or False whether the condition is satisfied or not """  # TODO fix description
 
     @staticmethod
-    def get_compare_fnc(direction: str):
+    def get_compare_fnc(direction: str, thr:float=0):
         if direction == "<":
-            return lambda x, y: x < y, np.inf
+            return lambda x, y: x < y-thr, np.inf
         elif direction == ">":
-            return lambda x, y: x > y, -np.inf
+            return lambda x, y: x > y+thr, -np.inf
         else:
             raise ValueError("unsupported direction {}. Available directions are '>' and '<'".format(direction))
 
@@ -34,11 +34,11 @@ class ThresholdCriterion(Criterion):
 
 
 class MaxNoImproveCriterion(Criterion):
-    def __init__(self, max_no_improve: int, monitor: Monitor, direction: str):
+    def __init__(self, max_no_improve: int, monitor: Monitor, direction: str, thr:float=0):
         self.__monitor = monitor
         self.__max_no_improve = max_no_improve
         self.__count = tf.Variable(initial_value=0, name='max_no_improve_count', dtype=tf.int32)
-        self.__compare_fnc, bound = Criterion.get_compare_fnc(direction=direction)
+        self.__compare_fnc, bound = Criterion.get_compare_fnc(direction=direction, thr=thr)
         self.__last_value = tf.Variable(initial_value=bound, name='max_no_improve_last_value', dtype=tf.float64)
 
         improve_occured = self.__compare_fnc(tf.cast(self.__monitor.value, dtype=tf.float64), self.__last_value)
