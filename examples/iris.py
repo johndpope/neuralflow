@@ -2,7 +2,8 @@ import numpy
 import numpy as np
 import tensorflow as tf
 from monitors.Criteria import MaxNoImproveCriterion, ImprovedValueCriterion
-from monitors.Quantity import FeedDict, PrimitiveQuantity, AccuracyMonitor2
+from monitors.Quantity import FeedDict, PrimitiveQuantity, AccuracyMonitor
+from monitors.logging_utils import start_logger
 from neuralflow.Dataset import ValidationProducer, BatchProducer
 from neuralflow.TensorInitilization import GaussianInitialization
 from neuralflow.math_utils import norm
@@ -74,7 +75,7 @@ class IrisDataset(BatchProducer, ValidationProducer):
         return batch
 
 
-def define_problem(dataset, output_dir):
+def define_problem(dataset, output_dir, logger):
     example = dataset.get_batch(1)
     n_in, n_out = example["input"].shape[1], example["output"].shape[1]
     print("n_in:{}, n_out:{}".format(n_in, n_out))
@@ -116,29 +117,20 @@ def define_problem(dataset, output_dir):
                                           problem.labels: validation_batch["output"]}, freq=100, output_dir=output_dir,
                                name="validation")
 
-    validation_y = PrimitiveQuantity(model.output, name="y_val")
-    validation_feed.add_quantity(validation_y)
-    acc_val_monitor = AccuracyMonitor2(validation_batch["output"])
+    validation_y = PrimitiveQuantity(model.output, name="y_val", feed=validation_feed)
+    acc_val_monitor = AccuracyMonitor(validation_batch["output"], logger=logger)
     validation_y.register(acc_val_monitor)
 
     # training
     training = IterativeTraining(max_it=10 ** 6, algorithm=algorithm, output_dir=output_dir,
-                                 feed_dicts=[validation_feed])
+                                 feed_dicts=[validation_feed], logger=logger)
 
-    max_no_improve = MaxNoImproveCriterion(max_no_improve=50, direction="<", monitor=acc_val_monitor)
+    max_no_improve = MaxNoImproveCriterion(max_no_improve=50, direction="<", monitor=acc_val_monitor, logger=logger)
     training.set_stop_criterion(max_no_improve)
 
     # saving criteria
     value_improved_criterion = ImprovedValueCriterion(monitor=acc_val_monitor, direction=">")
     training.set_save_criterion(value_improved_criterion)
-
-    # # stopping_criterion = ThresholdCriterion(monitor=loss_monitor, thr=0.2, direction='<')
-    #
-    # training.add_monitors_and_criteria(monitors=[loss_monitor, accuracy_monitor], freq=100, name="validation",
-    #                                    feed_dict={model.input: validation_batch["input"],
-    #                                               problem.labels: validation_batch["output"]},
-    #                                    stopping_criteria=[max_no_improve], saving_criteria=[value_improved_criterion])
-    # training.add_monitors_and_criteria(monitors=[grad_monitor], freq=100, name="train_batch")
 
     return training, model
 
@@ -149,11 +141,11 @@ if __name__ == "__main__":
     dataset = IrisDataset(csv_path=csv_path, seed=12)
 
     output_dir = "/home/giulio/tensorBoards/"
+    logger = start_logger(log_dir=output_dir, log_file="iris_train.log")
 
-    training, model = define_problem(dataset, output_dir)
+    training, model = define_problem(dataset, output_dir, logger)
     sess = tf.Session()
     training.train(sess=sess)
-    # sess.close()
 
     new_saver = tf.train.import_meta_graph(output_dir + 'best_checkpoint.meta')
     new_saver.restore(sess, output_dir + 'best_checkpoint')

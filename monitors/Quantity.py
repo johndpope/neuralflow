@@ -1,4 +1,5 @@
 import abc
+from logging import Logger
 from typing import Dict
 
 import tensorflow as tf
@@ -30,23 +31,25 @@ class FeedDict:
 
             output = sess.run(run_list, feed_dict=self.__feed_dict)
             for o, q in zip(output, self.__quantities):
-                q.compute_and_update(o, sess, iteration, self.__writer)
+                event_dict = {"iteration": iteration, "source_name": self.__name, "writer": self.__writer,
+                              "updated_value": o}
+                q.compute_and_update(sess, event_dict=event_dict)
+
+    @property
+    def name(self):
+        return self.__name
 
 
 class Observer:
     __metaclass__ = abc.ABCMeta
 
     @abc.abstractmethod
-    def compute_and_update(self, data, sess: tf.Session, iteration: int, writer):
-        """updates the monitor with the received data"""
+    def compute_and_update(self, sess: tf.Session, event_dict: dict):
+        """updates itself and notifies every registered observer of the happened change"""
 
 
-class Quantity:
+class Quantity(Observer):
     __metaclass__ = abc.ABCMeta
-
-    @abc.abstractmethod
-    def compute_and_update(self, data, sess: tf.Session, iteration: int, writer):
-        """updated the quantity and notifies every registered observer of the happened change"""
 
     @abc.abstractmethod
     def register(self, o: Observer):
@@ -54,10 +57,12 @@ class Quantity:
 
 
 class PrimitiveQuantity(Quantity):
-    def __init__(self, quantity, name: str):
+    def __init__(self, quantity, name: str, feed: FeedDict):
         self.__quantity = quantity
         self.__monitors = []
         self.__name = name
+        self.__feed = feed
+        self.__feed.add_quantity(self)
 
     @property
     def tf_quantity(self):
@@ -66,48 +71,56 @@ class PrimitiveQuantity(Quantity):
     def register(self, o: Observer):
         self.__monitors.append(o)
 
-    def compute_and_update(self, data, sess: tf.Session, iteration: int, writer):
-        print("Received update for primitive quantity: {}".format(self.__name))
+    def compute_and_update(self, sess: tf.Session, event_dict: dict):
         for m in self.__monitors:
-            m.compute_and_update(data, sess, iteration, writer)
+            m.compute_and_update(sess, event_dict)
 
 
-class AbstractScalarMonitor(Observer, Quantity):
+class AbstractScalarMonitor(Quantity):
     __metaclass__ = abc.ABCMeta
 
 
-class ScalarMonitor2(AbstractScalarMonitor):
-    def __init__(self, name: str):
+class ScalarMonitor(AbstractScalarMonitor):
+    def __init__(self, name: str, logger: Logger):
         self.__value_np = None
         self.__name = name
         self.__monitors = []
 
         self.__value_tf = tf.Variable(0, name=name + "_monitor")
         self.__summary = tf.summary.scalar(name, self.__value_tf)
+        self.__logger = logger
 
     def register(self, o: Observer):
         self.__monitors.append(o)
 
-    def compute_and_update(self, new_value_np, sess: tf.Session, iteration: int, writer):
-        self.__value_np = new_value_np
-        print("Updating Scalar ({}) Monitor -> value: {:.2f}".format(self.__name, new_value_np))
+    def compute_and_update(self, sess: tf.Session, event_dict: dict):
+        self.__value_np = event_dict["updated_value"]
+
+        source_name = "{}@{} ".format(self.__name.capitalize(), event_dict["source_name"].capitalize())
+        if self.__logger:
+            self.__logger.info("{}->:{:.2f} ".format(source_name, self.__value_np))
 
         assign_op = self.__value_tf.assign(self.__value_np)
         summary, _ = sess.run([self.__summary, assign_op])
-        writer.add_summary(summary, iteration)
+        event_dict["writer"].add_summary(summary, event_dict["iteration"])
+
+        event_dict = event_dict.copy()
+        event_dict["source_name"] = source_name
         for m in self.__monitors:
-            m.compute_and_update(new_value_np, sess, iteration, writer)
+            m.compute_and_update(sess, event_dict)
 
 
-class AccuracyMonitor2(AbstractScalarMonitor):
-    def __init__(self, labels):
+class AccuracyMonitor(AbstractScalarMonitor):
+    def __init__(self, labels, logger: Logger):
         self.__labels_np = np.argmax(labels, axis=1)
-        self.__scala_monitor = ScalarMonitor2(name="accuracy")
+        self.__scalar_monitor = ScalarMonitor(name="accuracy", logger=logger)
 
-    def compute_and_update(self, y_np, sess: tf.Session, iteration: int, writer):
-        pred_classes = np.argmax(y_np, axis=1)
+    def compute_and_update(self, sess: tf.Session, event_dict: dict):
+        pred_classes = np.argmax(event_dict["updated_value"], axis=1)
         acc_np = accuracy_score(self.__labels_np, pred_classes)
-        self.__scala_monitor.compute_and_update(acc_np, sess, iteration, writer)
+        event_dict = event_dict.copy()
+        event_dict["updated_value"] = acc_np
+        self.__scalar_monitor.compute_and_update(sess, event_dict)
 
     def register(self, o: Observer):
-        return self.__scala_monitor.register(o)
+        self.__scalar_monitor.register(o)
