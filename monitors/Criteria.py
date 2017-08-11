@@ -2,12 +2,12 @@ import abc
 from logging import Logger
 from typing import Tuple
 
-from monitors.Quantity import Observer, AbstractScalarMonitor
+from monitors.Quantity import Observer, AbstractScalarMonitor, Quantity, QuantityImpl, updated_event_dict, print_event
 import tensorflow as tf
 import numpy as np
 
 
-class Criterion(Observer):
+class Criterion(Quantity):
     __metaclass__ = abc.ABCMeta
 
     @abc.abstractmethod
@@ -32,13 +32,20 @@ class ThresholdCriterion(Criterion):
         monitor.register(self)
         self.__it = 1
         self.__logger = logger
+        self.__quantity_impl = QuantityImpl()
+
+    def register(self, o: Observer):
+        self.__quantity_impl.register(o)
 
     def compute_and_update(self, sess: tf.Session, event_dict: dict):
         self.__satisfied = self.__compare_fnc(event_dict["updated_value"], self.__thr)
         self.__it = event_dict["iteration"]
+
+        event_dict = updated_event_dict(old_dict=event_dict, new_value=self.__satisfied, new_name="ThresholdCriterion")
         if self.is_satisfied() and self.__logger:
-            self.__logger.info(
-                "Threshold[{:.2e}]Criterion@{} is satisfied ".format(self.__thr, event_dict["source_name"]))
+            self.__logger.info(print_event(event_dict))
+
+        self.__quantity_impl.compute_and_update(sess, event_dict)
 
     def is_satisfied(self) -> Tuple[bool, int]:
         return self.__satisfied, self.__it
@@ -56,6 +63,11 @@ class MaxNoImproveCriterion(Criterion):
         self.__logger = logger
         monitor.register(self)
 
+        self.__quantity_impl = QuantityImpl()
+
+    def register(self, o: Observer):
+        self.__quantity_impl.register(o)
+
     def compute_and_update(self, sess: tf.Session, event_dict: dict):
 
         new_value = event_dict["updated_value"]
@@ -70,8 +82,13 @@ class MaxNoImproveCriterion(Criterion):
             self.__count += 1
 
         self.__max_reached = self.__count > self.__max_no_improve
+
+        event_dict = updated_event_dict(old_dict=event_dict, new_value=self.__max_reached,
+                                        new_name="MaxNoImproveCriterion")
         if self.__max_reached and self.__logger:
-            self.__logger.info("MaxNoImproveCriterion@{} is satisfied ".format(event_dict["source_name"]))
+            self.__logger.info(print_event(event_dict))
+
+        self.__quantity_impl.compute_and_update(sess, event_dict)
 
     def is_satisfied(self) -> Tuple[bool, int]:
         return self.__max_reached, self.__it
@@ -86,6 +103,11 @@ class ImprovedValueCriterion(Criterion):
         self.__it = 1
         self.__logger = logger
 
+        self.__quantity_impl = QuantityImpl()
+
+    def register(self, o: Observer):
+        self.__quantity_impl.register(o)
+
     def compute_and_update(self, sess: tf.Session, event_dict: dict):
         new_value = event_dict["updated_value"]
 
@@ -93,10 +115,15 @@ class ImprovedValueCriterion(Criterion):
             self.__improvement_occured = True
             self.__best_value = new_value
             self.__it = event_dict["iteration"]
-            if self.__logger:
-                self.__logger.info("ImprovedValueCriterion@{} is satisfied ".format(event_dict["source_name"]))
         else:
             self.__improvement_occured = False
+
+        event_dict = updated_event_dict(old_dict=event_dict, new_value=self.__improvement_occured,
+                                        new_name="ImprovedValueCriterion")
+        if self.__improvement_occured and self.__logger:
+            self.__logger.info(print_event(event_dict))
+
+        self.__quantity_impl.compute_and_update(sess, event_dict)
 
     def is_satisfied(self) -> Tuple[bool, int]:
         return self.__improvement_occured, self.__it
@@ -106,6 +133,9 @@ class NullCriterion(Criterion):
     def __init__(self):
         self.__always_false = False
         self.__it = 1
+
+    def register(self, o: Observer):
+        pass
 
     def compute_and_update(self, sess: tf.Session, event_dict: dict):
         self.__it = event_dict["iteration"]

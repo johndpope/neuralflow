@@ -1,6 +1,7 @@
 import numpy
 import numpy as np
 import tensorflow as tf
+from monitors.CheckPointer import CheckPointer
 from monitors.Criteria import MaxNoImproveCriterion, ImprovedValueCriterion
 from monitors.Quantity import FeedDict, PrimitiveQuantity, AccuracyMonitor
 from monitors.logging_utils import start_logger
@@ -109,7 +110,6 @@ def define_problem(dataset, output_dir, logger):
 
     # monitors
     # grad_monitor = ScalarMonitor(name="grad_norm", variable=norm(algorithm.gradient, norm_type="l2"))
-    # accuracy_monitor = AccuracyMonitor(predictions=model.output, labels=problem.labels)
     # loss_monitor = ScalarMonitor(name="loss", variable=problem.objective_fnc_value)
 
     validation_batch = dataset.get_validation()
@@ -121,16 +121,16 @@ def define_problem(dataset, output_dir, logger):
     acc_val_monitor = AccuracyMonitor(validation_batch["output"], logger=logger)
     validation_y.register(acc_val_monitor)
 
+    # saving criteria
+    value_improved_criterion = ImprovedValueCriterion(monitor=acc_val_monitor, direction=">")
+    checkpointer = CheckPointer(output_dir=output_dir, logger=logger, save_criterion=value_improved_criterion, algorithm=algorithm)
+
     # training
     training = IterativeTraining(max_it=10 ** 6, algorithm=algorithm, output_dir=output_dir,
-                                 feed_dicts=[validation_feed], logger=logger)
+                                 feed_dicts=[validation_feed], logger=logger, check_pointer=checkpointer)
 
     max_no_improve = MaxNoImproveCriterion(max_no_improve=50, direction="<", monitor=acc_val_monitor, logger=logger)
     training.set_stop_criterion(max_no_improve)
-
-    # saving criteria
-    value_improved_criterion = ImprovedValueCriterion(monitor=acc_val_monitor, direction=">")
-    training.set_save_criterion(value_improved_criterion)
 
     return training, model
 
