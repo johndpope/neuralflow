@@ -1,8 +1,8 @@
 import tensorflow as tf
-from neuralflow.Dataset import BatchProducer
 from neuralflow.models.Model import Model
 from neuralflow.neuralnets.LossFunction import LossFunction
 from neuralflow.optimization.OptimizationProblem import OptimizationProblem
+from utils.Dataset import BatchProducer
 
 
 class SupervisedOptimizationProblem(OptimizationProblem):

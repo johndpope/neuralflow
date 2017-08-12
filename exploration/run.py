@@ -1,10 +1,10 @@
-import numpy
 import numpy as np
 import tensorflow as tf
+from exploration.ArtificialDataset import ArtificialDataset
 from models.Model import Model
 from monitors.CheckPointer import CheckPointer
 from monitors.Criteria import MaxNoImproveCriterion, ImprovedValueCriterion
-from monitors.Quantity import FeedDict, PrimitiveQuantity, AccuracyMonitor
+from monitors.Quantity import FeedDict, PrimitiveQuantity, AccuracyMonitor, ScalarMonitor
 from monitors.logging_utils import start_logger
 from neuralflow.TensorInitilization import GaussianInitialization
 from neuralflow.neuralnets.ActivationFunction import SoftmaxActivationFunction
@@ -13,55 +13,55 @@ from neuralflow.neuralnets.FeedForwardNeuralNet import FeedForwardNeuralNet
 from neuralflow.neuralnets.LossFunction import CrossEntropy
 from neuralflow.optimization.IterativeTraining import IterativeTraining
 from neuralflow.optimization.SupervisedOptimizationProblem import SupervisedOptimizationProblem
-from neuralnets.Layers import StandardLayerProducer, RBFLayerProducer
+from neuralnets.Layers import StandardLayerProducer
 from optimization.Algorithm import SimpleAlgorithm
 from optimization.GradientDescent import GradientDescent
 from sklearn import preprocessing
 from sklearn.metrics import accuracy_score
-from sklearn.preprocessing import OneHotEncoder
+from sklearn.model_selection import train_test_split
 from utils.Dataset import ValidationProducer, BatchProducer
+from utils.dataset_utils import add_dummy_dim
 
 
-class IrisDataset(BatchProducer, ValidationProducer):
-    def __init__(self, csv_path: str, seed: int):
-        training_set = tf.contrib.learn.datasets.base.load_csv_with_header(filename=csv_path + "iris_training.csv",
-                                                                           target_dtype=np.int, features_dtype=np.float)
-        test_set = tf.contrib.learn.datasets.base.load_csv_with_header(filename=csv_path + "iris_test.csv",
-                                                                       target_dtype=np.int, features_dtype=np.float)
+class ExplDataset(BatchProducer, ValidationProducer):
+    def __init__(self, seed: int, n_feats: int, n_samples, n_informative: int):
+        data = ArtificialDataset(seed=seed, n_feats=n_feats, n_samples=n_samples, n_informative=n_informative)
 
-        x_train, x_test, y_train, y_test = training_set.data, test_set.data, \
-                                           training_set.target, test_set.target
+        x_train, x_test, y_train, self.__y_test = train_test_split(data.X, data.Y, test_size=0.30, random_state=seed)
 
         scaler = preprocessing.StandardScaler().fit(x_train)
-        x_test = scaler.transform(x_test)
+        self.__x_test = scaler.transform(x_test)
         x_train = scaler.transform(x_train)
 
-        enc = OneHotEncoder(sparse=False)
-        y_train = enc.fit_transform(numpy.reshape(y_train, (y_train.shape[0], 1)))
-        y_test = enc.transform(numpy.reshape(y_test, (y_test.shape[0], 1)))
+        self.__x_train, self.__x_val, self.__y_train, self.__y_val = train_test_split(x_train, y_train, test_size=0.30,
+                                                                                      random_state=seed)
 
-        n = x_train.shape[0]
-        n_val = int(0.3 * n)
+        print("n_feats: {}, n_train: {}, n_val:{}, n_test:{}".format(n_feats, x_train.shape[0], self.__x_val.shape[0],
+                                                                     self.__x_test.shape[0]))
 
-        self.__validation_batch = {
-            'output': y_train[(n - n_val):],
-            'input': x_train[(n - n_val):, :]
-        }
-        self.__x_train = x_train[0:(n - n_val), :]
-        self.__y_train = y_train[0:(n - n_val)]
-
-        self.__test_batch = {
-            'output': y_test,
-            'input': x_test
-        }
+        self.__y_test = add_dummy_dim(self.__y_test)
+        self.__y_val = add_dummy_dim(self.__y_val)
+        self.__y_train = add_dummy_dim(self.__y_train)
 
         self.__rnd = np.random.RandomState(seed)
 
     def get_validation(self):
-        return self.__validation_batch
+        return {
+            'output': self.__y_val,
+            'input': self.__x_val
+        }
+
+    def get_train(self):
+        return {
+            'output': self.__y_train,
+            'input': self.__x_train
+        }
 
     def get_test(self):
-        return self.__test_batch
+        return {
+            'output': self.__y_test,
+            'input': self.__x_test
+        }
 
     def get_batch(self, batch_size):
         indexes = self.__rnd.randint(0, self.__x_train.shape[0], size=(batch_size,))
@@ -79,18 +79,15 @@ def define_problem(dataset, output_dir, logger):
     n_in, n_out = example["input"].shape[1], example["output"].shape[1]
     print("n_in:{}, n_out:{}".format(n_in, n_out))
 
-    seed = 13
-
-    hidden_layer_prod = StandardLayerProducer(n_units=100, initialization=GaussianInitialization(mean=0, std_dev=0.1),
+    hidden_layer_prod = StandardLayerProducer(n_units=100, initialization=GaussianInitialization(mean=0, std_dev=0.01),
                                               activation_fnc=TanhActivationFunction())
-    rbf_layer_producer = RBFLayerProducer(n_units=10, initialization=GaussianInitialization(mean=0, std_dev=0.1))
-    output_layer_prod = StandardLayerProducer(n_units=n_out, initialization=GaussianInitialization(mean=0, std_dev=0.1),
-                                              activation_fnc=SoftmaxActivationFunction(single_output=False))
+    output_layer_prod = StandardLayerProducer(n_units=n_out,
+                                              initialization=GaussianInitialization(mean=0, std_dev=0.01),
+                                              activation_fnc=SoftmaxActivationFunction(single_output=True))
 
     net = FeedForwardNeuralNet(n_in=n_in)
+    # net.add_layer(hidden_layer_prod)
     net.add_layer(hidden_layer_prod)
-    net.add_layer(hidden_layer_prod)
-    # net.add_layer(rbf_layer_producer)
     net.add_layer(output_layer_prod)
 
     external_input = Model.from_external_input(n_in=n_in)
@@ -98,7 +95,7 @@ def define_problem(dataset, output_dir, logger):
     model = Model.from_fnc(model=external_input, fnc=net)
 
     # objective function
-    loss_fnc = CrossEntropy(single_output=False)
+    loss_fnc = CrossEntropy(single_output=True)
 
     problem = SupervisedOptimizationProblem(model=model, loss_fnc=loss_fnc, batch_producer=dataset, batch_size=20)
     # optimizer
@@ -119,15 +116,29 @@ def define_problem(dataset, output_dir, logger):
     acc_val_monitor = AccuracyMonitor(validation_batch["output"], logger=logger)
     validation_y.register(acc_val_monitor)
 
+    train_batch = dataset.get_train()
+    train_feed = FeedDict(feed_dict={model.input: train_batch["input"],
+                                     problem.labels: train_batch["output"]}, freq=100, output_dir=output_dir,
+                          name="train")
+
+    train_y = PrimitiveQuantity(model.output, name="y_tr", feed=train_feed)
+    acc_tr_monitor = AccuracyMonitor(train_batch["output"], logger=logger)
+    train_y.register(acc_tr_monitor)
+
+    loss_tr = PrimitiveQuantity(problem.objective_fnc_value, name="loss_tr", feed=train_feed)
+    loss_tr_monitor = ScalarMonitor(name="Loss", logger=logger)
+    loss_tr.register(loss_tr_monitor)
+
     # saving criteria
     value_improved_criterion = ImprovedValueCriterion(monitor=acc_val_monitor, direction=">")
-    checkpointer = CheckPointer(output_dir=output_dir, logger=logger, save_criterion=value_improved_criterion, algorithm=algorithm)
+    checkpointer = CheckPointer(output_dir=output_dir, logger=logger, save_criterion=value_improved_criterion,
+                                algorithm=algorithm)
 
     # training
     training = IterativeTraining(max_it=10 ** 6, algorithm=algorithm, output_dir=output_dir,
-                                 feed_dicts=[validation_feed], logger=logger, check_pointer=checkpointer)
+                                 feed_dicts=[validation_feed, train_feed], logger=logger, check_pointer=checkpointer)
 
-    max_no_improve = MaxNoImproveCriterion(max_no_improve=50, direction="<", monitor=acc_val_monitor, logger=logger)
+    max_no_improve = MaxNoImproveCriterion(max_no_improve=20, direction="<", monitor=acc_val_monitor, logger=logger)
     training.set_stop_criterion(max_no_improve)
 
     return training, model
@@ -135,11 +146,10 @@ def define_problem(dataset, output_dir, logger):
 
 if __name__ == "__main__":
     # Data sets
-    csv_path = "./examples/"
-    dataset = IrisDataset(csv_path=csv_path, seed=12)
+    dataset = ExplDataset(seed=12, n_feats=3, n_samples=10000, n_informative=3)
 
-    output_dir = "/home/giulio/tensorBoards/"
-    logger = start_logger(log_dir=output_dir, log_file="iris_train.log")
+    output_dir = "/home/giulio/tensorBoards/expl/"
+    logger = start_logger(log_dir=output_dir, log_file="train.log")
 
     training, model = define_problem(dataset, output_dir, logger)
     sess = tf.Session()
@@ -152,6 +162,6 @@ if __name__ == "__main__":
     net_in = tf.get_collection("model.in")[0]
     out = sess.run(model.output, feed_dict={model.input: dataset.get_test()["input"]})
 
-    score = accuracy_score(y_true=numpy.argmax(dataset.get_test()["output"], axis=1), y_pred=numpy.argmax(out, axis=1))
+    score = accuracy_score(y_true=dataset.get_test()["output"], y_pred=np.round(out))
     sess.close()
     print("Accuracy score: {:.2f}".format(score))

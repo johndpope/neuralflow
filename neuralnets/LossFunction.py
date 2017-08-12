@@ -13,7 +13,7 @@ class LossFunction:
 
 
 class CrossEntropy(LossFunction):
-    def __init__(self, single_output: bool = False, class_weights: np.array = None):
+    def __init__(self, single_output: bool = False, class_weights: np.ndarray = None):
         self.__single_output = single_output
         self.__class_weights = class_weights if class_weights is not None else np.array((1, 1))  # TODO class !=2
 

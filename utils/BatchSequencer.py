@@ -1,8 +1,8 @@
 import numpy as np
-from Dataset import BatchProducer
+from utils.Dataset import BatchProducer
 
 
-class BatchSequencer(BatchProducer): # XXX bacthProducer
+class BatchSequencer(BatchProducer):
     def __init__(self, X, Y, seed: int):
         self.__X = X
         self.__Y = Y

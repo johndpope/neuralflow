@@ -76,32 +76,45 @@ class Quantity(Observer):
 
 
 class QuantityImpl:
-    def __init__(self):
+    __metaclass__ = abc.ABCMeta
+
+    @abc.abstractmethod
+    def update_dict(self, sess: tf.Session, event_dict: dict):
+        """receive an updated dict and computes its update"""
+
+
+class ConcreteQuantity:
+    def __init__(self, quantity_impl: QuantityImpl):
         self.__monitors = []
+        self.__impl = quantity_impl
 
     def register(self, o: Observer):
         self.__monitors.append(o)
 
     def compute_and_update(self, sess: tf.Session, event_dict: dict):
+        event_dict = self.__impl.update_dict(sess, event_dict)
         for m in self.__monitors:
             m.compute_and_update(sess, event_dict)
 
 
-class PrimitiveQuantity(Quantity):
+class PrimitiveQuantity(Quantity, QuantityImpl):
     def __init__(self, quantity, name: str, feed: FeedDict):
         self.__quantity = quantity
         self.__monitors = []
         self.__name = name
         self.__feed = feed
         self.__feed.add_quantity(self)
-        self.__impl = QuantityImpl()
+        self.__impl = ConcreteQuantity(self)
 
     @property
     def tf_quantity(self):
         return self.__quantity
 
+    def update_dict(self, sess, event_dict):
+        return event_dict
+
     def register(self, o: Observer):
-        self.__impl.register(o)
+        return self.__impl.register(o)
 
     def compute_and_update(self, sess: tf.Session, event_dict: dict):
         self.__impl.compute_and_update(sess, event_dict)
@@ -111,7 +124,7 @@ class AbstractScalarMonitor(Quantity):
     __metaclass__ = abc.ABCMeta
 
 
-class ScalarMonitor(AbstractScalarMonitor):
+class ScalarMonitorImpl(QuantityImpl):
     def __init__(self, name: str, logger: Logger):
         self.__value_np = None
         self.__name = name
@@ -121,10 +134,7 @@ class ScalarMonitor(AbstractScalarMonitor):
         self.__summary = tf.summary.scalar(name, self.__value_tf)
         self.__logger = logger
 
-    def register(self, o: Observer):
-        self.__impl.register(o)
-
-    def compute_and_update(self, sess: tf.Session, event_dict: dict):
+    def update_dict(self, sess: tf.Session, event_dict: dict):
         self.__value_np = event_dict["updated_value"]
 
         assign_op = self.__value_tf.assign(self.__value_np)
@@ -134,21 +144,46 @@ class ScalarMonitor(AbstractScalarMonitor):
         event_dict = updated_event_dict(new_name=self.__name, old_dict=event_dict)
         if self.__logger:
             self.__logger.info(print_event(event_dict, value_format=":.2f"))
+        return event_dict
 
-        self.__impl.compute_and_update(sess, event_dict)
+
+class ScalarMonitor(AbstractScalarMonitor):
+    def __init__(self, name: str, logger: Logger):
+        self.__quantity = ConcreteQuantity(ScalarMonitorImpl(name, logger))
+
+    def register(self, o: Observer):
+        self.__quantity.register(o)
+
+    def compute_and_update(self, sess: tf.Session, event_dict: dict):
+        self.__quantity.compute_and_update(sess, event_dict)
+
+
+class AccuracyMonitorImpl(QuantityImpl):
+    def __init__(self, labels, logger: Logger):
+        self.__labels_np = labels
+        if len(labels.shape) > 1 and labels.shape[1] > 1:
+            self.__labels_np = np.argmax(labels, axis=1)
+        self.__scalar_monitor = ScalarMonitorImpl(name="accuracy", logger=logger)
+
+    def update_dict(self, sess: tf.Session, event_dict: dict):
+        pred_classes = event_dict["updated_value"]
+        if len(pred_classes.shape) > 1 and pred_classes.shape[1] > 1:
+            pred_classes = np.argmax(pred_classes, axis=1)
+        else:
+            pred_classes = np.round(pred_classes)
+
+        acc_np = accuracy_score(self.__labels_np, pred_classes)
+
+        event_dict = updated_event_dict(old_dict=event_dict, new_value=acc_np)
+        return self.__scalar_monitor.update_dict(sess, event_dict)
 
 
 class AccuracyMonitor(AbstractScalarMonitor):
     def __init__(self, labels, logger: Logger):
-        self.__labels_np = np.argmax(labels, axis=1)
-        self.__scalar_monitor = ScalarMonitor(name="accuracy", logger=logger)
-
-    def compute_and_update(self, sess: tf.Session, event_dict: dict):
-        pred_classes = np.argmax(event_dict["updated_value"], axis=1)
-        acc_np = accuracy_score(self.__labels_np, pred_classes)
-
-        event_dict = updated_event_dict(old_dict=event_dict, new_value=acc_np)
-        self.__scalar_monitor.compute_and_update(sess, event_dict)
+        self.__quantity = ConcreteQuantity(AccuracyMonitorImpl(labels, logger))
 
     def register(self, o: Observer):
-        self.__scalar_monitor.register(o)
+        self.__quantity.register(o)
+
+    def compute_and_update(self, sess: tf.Session, event_dict: dict):
+        self.__quantity.compute_and_update(sess, event_dict)
