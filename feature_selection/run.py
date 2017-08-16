@@ -1,29 +1,24 @@
-from feature_selection.BiLevelAlgorithm import BiLevelAlgorithm
-from selfea.datasets.ArtificialDataset import ArtificialDataset
-
-import numpy
 import numpy as np
 import tensorflow as tf
-from neuralflow.Dataset import ValidationProducer, BatchProducer
-from neuralflow.TensorInitilization import GaussianInitialization
-from neuralflow.math_utils import norm
+from feature_selection.BiLevelAlgorithm import BiLevelAlgorithm
 from models.Model import Model
-
-from neuralflow.neuralnets.FeedForwardNeuralNet import FeedForwardNeuralNet
-from neuralnets.Layers import StandardLayerProducer, RBFLayerProducer, ElementwiseMulLayerProducer
-from neuralflow.optimization.Monitor import ScalarMonitor, AccuracyMonitor
-from neuralflow.optimization.Criterion import ThresholdCriterion, MaxNoImproveCriterion, ImprovedValueCriterion
+from neuralflow.TensorInitilization import GaussianInitialization
 from neuralflow.neuralnets.ActivationFunction import SoftmaxActivationFunction
 from neuralflow.neuralnets.ActivationFunction import TanhActivationFunction
-from neuralflow.neuralnets.LossFunction import CrossEntropy, HingeLoss
+from neuralflow.neuralnets.FeedForwardNeuralNet import FeedForwardNeuralNet
+from neuralflow.neuralnets.LossFunction import HingeLoss
+from neuralflow.optimization.Criterion import MaxNoImproveCriterion, ImprovedValueCriterion
 from neuralflow.optimization.IterativeTraining import IterativeTraining
+from neuralflow.optimization.Monitor import ScalarMonitor, AccuracyMonitor
 from neuralflow.optimization.SupervisedOptimizationProblem import SupervisedOptimizationProblem
+from neuralnets.Layers import StandardLayerProducer
 from optimization.Algorithm import SimpleAlgorithm
 from optimization.GradientDescent import GradientDescent
+from selfea.datasets.ArtificialDataset import ArtificialDataset
 from sklearn import preprocessing
 from sklearn.metrics import accuracy_score
-from sklearn.preprocessing import OneHotEncoder
 from utils.BatchSequencer import BatchSequencer
+from utils.Dataset import ValidationProducer, BatchProducer
 
 
 class BiLevelDataset(BatchProducer, ValidationProducer):

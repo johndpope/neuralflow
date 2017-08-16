@@ -4,7 +4,7 @@ from exploration.ArtificialDataset import ArtificialDataset
 from models.Model import Model
 from monitors.CheckPointer import CheckPointer
 from monitors.Criteria import MaxNoImproveCriterion, ImprovedValueCriterion
-from monitors.Quantity import FeedDict, PrimitiveQuantity, AccuracyMonitor, ScalarMonitor
+from monitors.Quantity import ExternalFeed, PrimitiveQuantity, AccuracyMonitor, ScalarMonitor
 from monitors.logging_utils import start_logger
 from neuralflow.TensorInitilization import GaussianInitialization
 from neuralflow.neuralnets.ActivationFunction import SoftmaxActivationFunction
@@ -79,7 +79,7 @@ def define_problem(dataset, output_dir, logger):
     n_in, n_out = example["input"].shape[1], example["output"].shape[1]
     print("n_in:{}, n_out:{}".format(n_in, n_out))
 
-    hidden_layer_prod = StandardLayerProducer(n_units=100, initialization=GaussianInitialization(mean=0, std_dev=0.01),
+    hidden_layer_prod = StandardLayerProducer(n_units=200, initialization=GaussianInitialization(mean=0, std_dev=0.01),
                                               activation_fnc=TanhActivationFunction())
     output_layer_prod = StandardLayerProducer(n_units=n_out,
                                               initialization=GaussianInitialization(mean=0, std_dev=0.01),
@@ -105,21 +105,23 @@ def define_problem(dataset, output_dir, logger):
 
     # monitors
     # grad_monitor = ScalarMonitor(name="grad_norm", variable=norm(algorithm.gradient, norm_type="l2"))
-    # loss_monitor = ScalarMonitor(name="loss", variable=problem.objective_fnc_value)
 
+    # validation feed
     validation_batch = dataset.get_validation()
-    validation_feed = FeedDict(feed_dict={model.input: validation_batch["input"],
-                                          problem.labels: validation_batch["output"]}, freq=100, output_dir=output_dir,
-                               name="validation")
+    validation_feed = ExternalFeed(feed_dict={model.input: validation_batch["input"],
+                                              problem.labels: validation_batch["output"]}, freq=100,
+                                   output_dir=output_dir,
+                                   name="validation")
 
     validation_y = PrimitiveQuantity(model.output, name="y_val", feed=validation_feed)
     acc_val_monitor = AccuracyMonitor(validation_batch["output"], logger=logger)
     validation_y.register(acc_val_monitor)
 
+    # training feed
     train_batch = dataset.get_train()
-    train_feed = FeedDict(feed_dict={model.input: train_batch["input"],
-                                     problem.labels: train_batch["output"]}, freq=100, output_dir=output_dir,
-                          name="train")
+    train_feed = ExternalFeed(feed_dict={model.input: train_batch["input"],
+                                         problem.labels: train_batch["output"]}, freq=100, output_dir=output_dir,
+                              name="train")
 
     train_y = PrimitiveQuantity(model.output, name="y_tr", feed=train_feed)
     acc_tr_monitor = AccuracyMonitor(train_batch["output"], logger=logger)
@@ -136,9 +138,15 @@ def define_problem(dataset, output_dir, logger):
 
     # training
     training = IterativeTraining(max_it=10 ** 6, algorithm=algorithm, output_dir=output_dir,
-                                 feed_dicts=[validation_feed, train_feed], logger=logger, check_pointer=checkpointer)
+                                 feed_dicts=[validation_feed], logger=logger, check_pointer=checkpointer)
 
-    max_no_improve = MaxNoImproveCriterion(max_no_improve=20, direction="<", monitor=acc_val_monitor, logger=logger)
+    # iterative batch feed
+    gradient_norm = PrimitiveQuantity(tf.norm(algorithm.gradient, ord=2), name="grad_norm",
+                                      feed=training.iterative_feed)
+    loss_tr_monitor = ScalarMonitor(name="GradientNorm", logger=logger, format=":.2e")
+    gradient_norm.register(loss_tr_monitor)
+
+    max_no_improve = MaxNoImproveCriterion(max_no_improve=200, direction="<", monitor=acc_val_monitor, logger=logger)
     training.set_stop_criterion(max_no_improve)
 
     return training, model
@@ -146,7 +154,7 @@ def define_problem(dataset, output_dir, logger):
 
 if __name__ == "__main__":
     # Data sets
-    dataset = ExplDataset(seed=12, n_feats=3, n_samples=10000, n_informative=3)
+    dataset = ExplDataset(seed=12, n_feats=10, n_samples=100000, n_informative=3)
 
     output_dir = "/home/giulio/tensorBoards/expl/"
     logger = start_logger(log_dir=output_dir, log_file="train.log")

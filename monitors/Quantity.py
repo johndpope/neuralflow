@@ -1,6 +1,6 @@
 import abc
 from logging import Logger
-from typing import Dict
+from typing import Dict, Union, Callable
 
 import tensorflow as tf
 import numpy as np
@@ -26,8 +26,16 @@ def print_event(event_dict: dict, value_format: str = "") -> str:
     return s.format(event_dict["source_name"], event_dict["updated_value"])
 
 
-class FeedDict:
-    def __init__(self, feed_dict: Dict, freq: int, output_dir: str, name: str):
+class Feed:
+    __metaclass__ = abc.ABCMeta
+
+    @abc.abstractmethod
+    def add_quantity(self, quantity):
+        """register 'Quantity' quantity to be processed for this feed"""
+
+
+class ExternalFeed(Feed):
+    def __init__(self, feed_dict: Union[Dict, Callable[[], Dict]], freq: int, output_dir: str, name: str):
         self.__feed_dict = feed_dict
         self.__freq = freq
         self.__quantities = []
@@ -48,7 +56,8 @@ class FeedDict:
             for q in self.__quantities:
                 run_list.append(q.tf_quantity)
 
-            output = sess.run(run_list, feed_dict=self.__feed_dict)
+            output = sess.run(run_list,
+                              feed_dict=self.__feed_dict if type(self.__feed_dict) == dict else self.__feed_dict())
             for o, q in zip(output, self.__quantities):
                 event_dict = {"iteration": iteration, "source_name": self.__name, "writer": self.__writer,
                               "updated_value": o}
@@ -98,7 +107,7 @@ class ConcreteQuantity:
 
 
 class PrimitiveQuantity(Quantity, QuantityImpl):
-    def __init__(self, quantity, name: str, feed: FeedDict):
+    def __init__(self, quantity, name: str, feed: Feed):
         self.__quantity = quantity
         self.__monitors = []
         self.__name = name
@@ -125,10 +134,11 @@ class AbstractScalarMonitor(Quantity):
 
 
 class ScalarMonitorImpl(QuantityImpl):
-    def __init__(self, name: str, logger: Logger):
+    def __init__(self, name: str, logger: Logger, format):
         self.__value_np = None
         self.__name = name
-        self.__impl = QuantityImpl()
+        # self.__impl = QuantityImpl()
+        self.__format = format
 
         self.__value_tf = tf.Variable(0, name=name + "_monitor")
         self.__summary = tf.summary.scalar(name, self.__value_tf)
@@ -143,13 +153,13 @@ class ScalarMonitorImpl(QuantityImpl):
 
         event_dict = updated_event_dict(new_name=self.__name, old_dict=event_dict)
         if self.__logger:
-            self.__logger.info(print_event(event_dict, value_format=":.2f"))
+            self.__logger.info(print_event(event_dict, value_format=self.__format))
         return event_dict
 
 
 class ScalarMonitor(AbstractScalarMonitor):
-    def __init__(self, name: str, logger: Logger):
-        self.__quantity = ConcreteQuantity(ScalarMonitorImpl(name, logger))
+    def __init__(self, name: str, logger: Logger, format: str = ":.2f"):
+        self.__quantity = ConcreteQuantity(ScalarMonitorImpl(name, logger, format))
 
     def register(self, o: Observer):
         self.__quantity.register(o)
@@ -163,7 +173,7 @@ class AccuracyMonitorImpl(QuantityImpl):
         self.__labels_np = labels
         if len(labels.shape) > 1 and labels.shape[1] > 1:
             self.__labels_np = np.argmax(labels, axis=1)
-        self.__scalar_monitor = ScalarMonitorImpl(name="accuracy", logger=logger)
+        self.__scalar_monitor = ScalarMonitorImpl(name="accuracy", logger=logger, format=":.2f")
 
     def update_dict(self, sess: tf.Session, event_dict: dict):
         pred_classes = event_dict["updated_value"]

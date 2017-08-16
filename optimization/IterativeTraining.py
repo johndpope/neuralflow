@@ -2,16 +2,45 @@ from logging import Logger
 
 import tensorflow as tf
 import time
-from typing import List
+from typing import List, Dict
 
 from monitors import CheckPointer
 from monitors.Criteria import Criterion, NullCriterion
-from monitors.Quantity import FeedDict
+from monitors.Quantity import ExternalFeed, Feed
 from neuralflow.optimization.Algorithm import Algorithm
 
 
+class IterativeFeed(Feed):  # fixme duplicate code
+    def __init__(self, freq: int, output_dir: str):
+        self.__freq = freq
+        self.__quantities = []
+        self.__output_dir = output_dir
+        self.__name = "TrainBatch"
+        self.__writer = None
+
+    def add_quantity(self, quantity):
+        self.__quantities.append(quantity)
+
+    def feed(self, sess: tf.Session, iteration: int, train_op, feed_dict: Dict):
+        """executes the train operation alongside the registered quantities and start the notify process"""
+        if not self.__writer:
+            self.__writer = tf.summary.FileWriter(self.__output_dir + self.__name, sess.graph)
+
+        if iteration % self.__freq == 0:
+            run_list = []
+            for q in self.__quantities:
+                run_list.append(q.tf_quantity)
+
+            output = sess.run([train_op] + run_list, feed_dict=feed_dict)
+            for o, q in zip(output[1:], self.__quantities):
+                event_dict = {"iteration": iteration, "source_name": self.__name, "writer": self.__writer,
+                              "updated_value": o}
+                q.compute_and_update(sess, event_dict=event_dict)
+
+
 class IterativeTraining:
-    def __init__(self, max_it: int, algorithm: Algorithm, output_dir: str, feed_dicts: List[FeedDict], logger: Logger,
+    def __init__(self, max_it: int, algorithm: Algorithm, output_dir: str, feed_dicts: List[ExternalFeed],
+                 logger: Logger,
                  check_pointer: CheckPointer = None):
         self.__max_it = max_it
         self.__algorithm = algorithm
@@ -22,6 +51,11 @@ class IterativeTraining:
         self.__save_criterion = NullCriterion()
         self.__logger = logger
         self.__check_pointer = check_pointer
+        self.__iterative_feed = IterativeFeed(100, output_dir)
+
+    @property
+    def iterative_feed(self) -> IterativeFeed:
+        return self.__iterative_feed
 
     def set_stop_criterion(self, criterion: Criterion):
         self.__stop_criterion = criterion
@@ -47,7 +81,7 @@ class IterativeTraining:
 
             # train step
             train_step, train_dict = self.__algorithm.get_train_op()
-            sess.run(train_step, feed_dict=train_dict)
+            self.__iterative_feed.feed(sess, i, train_op=train_step, feed_dict=train_dict)
 
             for d in self.__feed_dicts:
                 d.feed(sess=sess, iteration=i)

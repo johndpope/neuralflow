@@ -4,7 +4,7 @@ import tensorflow as tf
 from models.Model import Model
 from monitors.CheckPointer import CheckPointer
 from monitors.Criteria import MaxNoImproveCriterion, ImprovedValueCriterion
-from monitors.Quantity import FeedDict, PrimitiveQuantity, AccuracyMonitor
+from monitors.Quantity import ExternalFeed, PrimitiveQuantity, AccuracyMonitor
 from monitors.logging_utils import start_logger
 from neuralflow.TensorInitilization import GaussianInitialization
 from neuralflow.neuralnets.ActivationFunction import SoftmaxActivationFunction
@@ -111,9 +111,9 @@ def define_problem(dataset, output_dir, logger):
     # loss_monitor = ScalarMonitor(name="loss", variable=problem.objective_fnc_value)
 
     validation_batch = dataset.get_validation()
-    validation_feed = FeedDict(feed_dict={model.input: validation_batch["input"],
-                                          problem.labels: validation_batch["output"]}, freq=100, output_dir=output_dir,
-                               name="validation")
+    validation_feed = ExternalFeed(feed_dict={model.input: validation_batch["input"],
+                                              problem.labels: validation_batch["output"]}, freq=100, output_dir=output_dir,
+                                   name="validation")
 
     validation_y = PrimitiveQuantity(model.output, name="y_val", feed=validation_feed)
     acc_val_monitor = AccuracyMonitor(validation_batch["output"], logger=logger)
