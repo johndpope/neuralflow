@@ -1,12 +1,16 @@
+from typing import Tuple
+
 import tensorflow as tf
 from neuralflow.models.Model import Model
 from neuralflow.neuralnets.LossFunction import LossFunction
 from neuralflow.optimization.OptimizationProblem import OptimizationProblem
+from optimization.Penalty import Penalty
 from utils.Dataset import BatchProducer
 
 
 class SupervisedOptimizationProblem(OptimizationProblem):
-    def __init__(self, model: Model, loss_fnc: LossFunction, batch_producer: BatchProducer, batch_size: int, trainables:list=None, penalty:float=0):  # XXX batch producer
+    def __init__(self, model: Model, loss_fnc: LossFunction, batch_producer: BatchProducer, batch_size: int,
+                 trainables: list = None, penalty: Tuple[float, Penalty] = None):  # XXX batch producer
         self.__model = model
         self.__loss_fnc = loss_fnc
         self.__batch_producer = batch_producer
@@ -14,14 +18,16 @@ class SupervisedOptimizationProblem(OptimizationProblem):
         self.__batch_size = batch_size
         self.__trainables = trainables if trainables is not None and len(trainables) > 0 else model.trainables
 
-        self.__lambda = penalty if penalty is not None else 0
+        self.__lambda, self.__penalty = (None, None) if penalty is None else (None, None)
 
     @property
     def objective_fnc_value(self):
-        vars = [tf.reshape(g, [-1]) for g in self.__trainables]
-        v = tf.concat(vars, 0)
+        # vars = [tf.reshape(g, [-1]) for g in self.__trainables]
+        v = self.__loss_fnc.value(self.__model.output, self.__t)
+        if self.__penalty is not None:
+            v += self.__lambda * self.__penalty.value_tf
 
-        return self.__loss_fnc.value(self.__model.output, self.__t) + self.__lambda * tf.reduce_mean(tf.abs(v))
+        return v
 
     def get_feed_dict(self):
         batch = self.__batch_producer.get_batch(batch_size=self.__batch_size)
@@ -40,5 +46,5 @@ class SupervisedOptimizationProblem(OptimizationProblem):
     def trainables(self):
         return self.__trainables
 
-    def save_check_point(self, output_dir: str, name:str, session: tf.Session):
+    def save_check_point(self, output_dir: str, name: str, session: tf.Session):
         self.__model.save(output_dir, name, session)

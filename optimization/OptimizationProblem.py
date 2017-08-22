@@ -14,11 +14,12 @@ class FeedDictionaryProducer:
 class OptimizationProblem(FeedDictionaryProducer):
     __metaclass__ = abc.ABCMeta
 
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def objective_fnc_value(self):
         """"""
-
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def trainables(self):
         """"""
 

@@ -4,7 +4,7 @@ import tensorflow as tf
 from models.Model import Model
 from monitors.CheckPointer import CheckPointer
 from monitors.Criteria import MaxNoImproveCriterion, ImprovedValueCriterion
-from monitors.Quantity import ExternalFeed, PrimitiveQuantity, AccuracyMonitor
+from monitors.Quantity import ExternalFeed, PrimitiveQuantity, AccuracyMonitor, ScalarMonitor
 from monitors.logging_utils import start_logger
 from neuralflow.TensorInitilization import GaussianInitialization
 from neuralflow.neuralnets.ActivationFunction import SoftmaxActivationFunction
@@ -16,6 +16,7 @@ from neuralflow.optimization.SupervisedOptimizationProblem import SupervisedOpti
 from neuralnets.Layers import StandardLayerProducer, RBFLayerProducer
 from optimization.Algorithm import SimpleAlgorithm
 from optimization.GradientDescent import GradientDescent
+from optimization.Penalty import NormPenalty
 from sklearn import preprocessing
 from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import OneHotEncoder
@@ -81,10 +82,10 @@ def define_problem(dataset, output_dir, logger):
 
     seed = 13
 
-    hidden_layer_prod = StandardLayerProducer(n_units=100, initialization=GaussianInitialization(mean=0, std_dev=0.1),
+    hidden_layer_prod = StandardLayerProducer(n_units=50, initialization=GaussianInitialization(mean=0, std_dev=0.01),
                                               activation_fnc=TanhActivationFunction())
-    rbf_layer_producer = RBFLayerProducer(n_units=10, initialization=GaussianInitialization(mean=0, std_dev=0.1))
-    output_layer_prod = StandardLayerProducer(n_units=n_out, initialization=GaussianInitialization(mean=0, std_dev=0.1),
+    rbf_layer_producer = RBFLayerProducer(n_units=10, initialization=GaussianInitialization(mean=0, std_dev=0.01))
+    output_layer_prod = StandardLayerProducer(n_units=n_out, initialization=GaussianInitialization(mean=0, std_dev=0.01),
                                               activation_fnc=SoftmaxActivationFunction(single_output=False))
 
     net = FeedForwardNeuralNet(n_in=n_in)
@@ -100,19 +101,24 @@ def define_problem(dataset, output_dir, logger):
     # objective function
     loss_fnc = CrossEntropy(single_output=False)
 
-    problem = SupervisedOptimizationProblem(model=model, loss_fnc=loss_fnc, batch_producer=dataset, batch_size=20)
+    # penalty
+    p = NormPenalty(quantities_tf=model.trainables)
+    penalty = (1000, p)
+
+    # problem
+    problem = SupervisedOptimizationProblem(model=model, loss_fnc=loss_fnc, batch_producer=dataset, batch_size=20,
+                                            penalty=penalty)
     # optimizer
     optimizing_step = GradientDescent(lr=0.01)
 
     algorithm = SimpleAlgorithm(problem=problem, optimization_step=optimizing_step)
 
     # monitors
-    # grad_monitor = ScalarMonitor(name="grad_norm", variable=norm(algorithm.gradient, norm_type="l2"))
-    # loss_monitor = ScalarMonitor(name="loss", variable=problem.objective_fnc_value)
-
+    # validation feed
     validation_batch = dataset.get_validation()
     validation_feed = ExternalFeed(feed_dict={model.input: validation_batch["input"],
-                                              problem.labels: validation_batch["output"]}, freq=100, output_dir=output_dir,
+                                              problem.labels: validation_batch["output"]}, freq=100,
+                                   output_dir=output_dir,
                                    name="validation")
 
     validation_y = PrimitiveQuantity(model.output, name="y_val", feed=validation_feed)
@@ -121,7 +127,8 @@ def define_problem(dataset, output_dir, logger):
 
     # saving criteria
     value_improved_criterion = ImprovedValueCriterion(monitor=acc_val_monitor, direction=">")
-    checkpointer = CheckPointer(output_dir=output_dir, logger=logger, save_criterion=value_improved_criterion, algorithm=algorithm)
+    checkpointer = CheckPointer(output_dir=output_dir, logger=logger, save_criterion=value_improved_criterion,
+                                algorithm=algorithm)
 
     # training
     training = IterativeTraining(max_it=10 ** 6, algorithm=algorithm, output_dir=output_dir,
@@ -129,6 +136,18 @@ def define_problem(dataset, output_dir, logger):
 
     max_no_improve = MaxNoImproveCriterion(max_no_improve=50, direction="<", monitor=acc_val_monitor, logger=logger)
     training.set_stop_criterion(max_no_improve)
+
+    # iterative feed
+    penalty_it = PrimitiveQuantity(p.value_tf, name="penalty", feed=training.iterative_feed)
+    # penalty_it = PrimitiveQuantity(tf.norm(algorithm.gradient, 2), name="grad", feed=training.iterative_feed)
+
+    penalty_monitor = ScalarMonitor(name="penalty", logger=logger, format=":.3f")
+    penalty_it.register(penalty_monitor)
+
+    obj_fnc = PrimitiveQuantity(problem.objective_fnc_value, name="obj_value",
+                                      feed=training.iterative_feed)
+    obj_monitor = ScalarMonitor(name="ObjFnc", logger=logger, format=":.2f")
+    obj_fnc.register(obj_monitor)
 
     return training, model
 
@@ -138,7 +157,7 @@ if __name__ == "__main__":
     csv_path = "./examples/"
     dataset = IrisDataset(csv_path=csv_path, seed=12)
 
-    output_dir = "/home/giulio/tensorBoards/"
+    output_dir = "/home/galvan/tensorBoards/iris/"
     logger = start_logger(log_dir=output_dir, log_file="iris_train.log")
 
     training, model = define_problem(dataset, output_dir, logger)

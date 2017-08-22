@@ -156,7 +156,7 @@ if __name__ == "__main__":
     # Data sets
     dataset = ExplDataset(seed=12, n_feats=10, n_samples=100000, n_informative=3)
 
-    output_dir = "/home/giulio/tensorBoards/expl/"
+    output_dir = "/home/galvan/tensorBoards/expl/"
     logger = start_logger(log_dir=output_dir, log_file="train.log")
 
     training, model = define_problem(dataset, output_dir, logger)
