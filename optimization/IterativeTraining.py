@@ -82,7 +82,6 @@ class IterativeTraining:
         i = 1
 
         start_time = time.time()
-        t0 = time.time()
         while not stop:
 
             # train step
