@@ -18,7 +18,7 @@ class SupervisedOptimizationProblem(OptimizationProblem):
         self.__batch_size = batch_size
         self.__trainables = trainables if trainables is not None and len(trainables) > 0 else model.trainables
 
-        self.__lambda, self.__penalty = (None, None) if penalty is None else (None, None)
+        self.__lambda, self.__penalty = (None, None) if penalty is None else penalty[0], penalty[1]
 
     @property
     def objective_fnc_value(self):
