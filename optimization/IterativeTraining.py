@@ -11,12 +11,13 @@ from neuralflow.optimization.Algorithm import Algorithm
 
 
 class IterativeFeed(Feed):  # fixme duplicate code
-    def __init__(self, freq: int, output_dir: str):
+    def __init__(self, freq: int, output_dir: str, logger:Logger):
         self.__freq = freq
         self.__quantities = []
         self.__output_dir = output_dir
         self.__name = "TrainBatch"
         self.__writer = None
+        self.__logger = logger
 
     def add_quantity(self, quantity):
         self.__quantities.append(quantity)
@@ -27,6 +28,7 @@ class IterativeFeed(Feed):  # fixme duplicate code
             self.__writer = tf.summary.FileWriter(self.__output_dir + self.__name, sess.graph)
 
         if iteration % self.__freq == 0:
+            t0 = time.time()
             run_list = []
             for q in self.__quantities:
                 run_list.append(q.tf_quantity)
@@ -36,6 +38,10 @@ class IterativeFeed(Feed):  # fixme duplicate code
                 event_dict = {"iteration": iteration, "source_name": self.__name, "writer": self.__writer,
                               "updated_value": o}
                 q.compute_and_update(sess, event_dict=event_dict)
+            t1 = time.time()
+            self.__logger.info("Iteration: {}, time:{:.1f}s".format(iteration, t1 - t0))
+        else:
+            sess.run(train_op, feed_dict=feed_dict)
 
 
 class IterativeTraining:
@@ -51,7 +57,7 @@ class IterativeTraining:
         self.__save_criterion = NullCriterion()
         self.__logger = logger
         self.__check_pointer = check_pointer
-        self.__iterative_feed = IterativeFeed(100, output_dir)
+        self.__iterative_feed = IterativeFeed(100, output_dir, logger)
 
     @property
     def iterative_feed(self) -> IterativeFeed:
@@ -91,10 +97,6 @@ class IterativeTraining:
                 self.__logger.info("Maximum number of iteration reached.")
                 stop = True
 
-            if i % 100 == 0:
-                t1 = time.time()
-                self.__logger.info("Iteration: {}, time:{:.1f}s".format(i, t1 - t0))
-                t0 = t1
             i += 1
 
         self.__logger.info("Done. (Training time:{:.1f}m)".format((time.time() - start_time) / 60))
