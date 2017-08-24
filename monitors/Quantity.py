@@ -22,8 +22,8 @@ def updated_event_dict(old_dict: dict, new_name: str = None, new_value=None):
 
 
 def print_event(event_dict: dict, value_format: str = "") -> str:
-    s = "{} -> {" + value_format + "}"
-    return s.format(event_dict["source_name"], event_dict["updated_value"])
+    s = "It{}:{} -> {" + value_format + "}"
+    return s.format(event_dict["iteration"], event_dict["source_name"], event_dict["updated_value"])
 
 
 class Feed:
@@ -73,7 +73,7 @@ class Observer:
 
     @abc.abstractmethod
     def compute_and_update(self, sess: tf.Session, event_dict: dict):
-        """updates itself and notifies every registered observer of the happened change"""
+        """updates itself and notifies every registered observer of the happened change""" # FIXME
 
 
 class Quantity(Observer):

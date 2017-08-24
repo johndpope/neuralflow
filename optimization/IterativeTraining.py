@@ -11,7 +11,7 @@ from neuralflow.optimization.Algorithm import Algorithm
 
 
 class IterativeFeed(Feed):  # fixme duplicate code
-    def __init__(self, freq: int, output_dir: str, logger:Logger):
+    def __init__(self, freq: int, output_dir: str, logger: Logger):
         self.__freq = freq
         self.__quantities = []
         self.__output_dir = output_dir
@@ -47,7 +47,7 @@ class IterativeFeed(Feed):  # fixme duplicate code
 class IterativeTraining:
     def __init__(self, max_it: int, algorithm: Algorithm, output_dir: str, feed_dicts: List[ExternalFeed],
                  logger: Logger,
-                 check_pointer: CheckPointer = None):
+                 check_pointer: CheckPointer = None, freq: int = 100):
         self.__max_it = max_it
         self.__algorithm = algorithm
         self.__output_dir = output_dir + "/"
@@ -57,7 +57,7 @@ class IterativeTraining:
         self.__save_criterion = NullCriterion()
         self.__logger = logger
         self.__check_pointer = check_pointer
-        self.__iterative_feed = IterativeFeed(100, output_dir, logger)
+        self.__iterative_feed = IterativeFeed(freq, output_dir, logger)
 
     @property
     def iterative_feed(self) -> IterativeFeed:

@@ -18,16 +18,16 @@ class SupervisedOptimizationProblem(OptimizationProblem):
         self.__batch_size = batch_size
         self.__trainables = trainables if trainables is not None and len(trainables) > 0 else model.trainables
 
-        self.__lambda, self.__penalty = (None, None) if penalty is None else penalty[0], penalty[1]
+        self.__obj_fnc = self.__loss_fnc.value(self.__model.output, self.__t)
+        if penalty is not None:
+            self.add_penalty(penalty)
+
+    def add_penalty(self, penalty: Tuple[float, Penalty]):
+        self.__obj_fnc = self.__obj_fnc + penalty[0] * penalty[1].value_tf
 
     @property
     def objective_fnc_value(self):
-        # vars = [tf.reshape(g, [-1]) for g in self.__trainables]
-        v = self.__loss_fnc.value(self.__model.output, self.__t)
-        if self.__penalty is not None:
-            v += self.__lambda * self.__penalty.value_tf
-
-        return v
+        return self.__obj_fnc
 
     def get_feed_dict(self):
         batch = self.__batch_producer.get_batch(batch_size=self.__batch_size)

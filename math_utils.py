@@ -17,3 +17,7 @@ def norm(x, norm_type: str = "l2"):
         raise AttributeError("Unsupported norm type: {}, choose from 'l1, 'l2''".format(norm_type))
 
 
+def merge_all_tensors(tensors_tf: list):
+    vars = [tf.reshape(g, [-1]) for g in tensors_tf]
+    v = tf.concat(vars, 0)
+    return v

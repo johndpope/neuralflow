@@ -16,6 +16,7 @@ from neuralflow.optimization.SupervisedOptimizationProblem import SupervisedOpti
 from neuralnets.Layers import StandardLayerProducer
 from optimization.Algorithm import SimpleAlgorithm
 from optimization.GradientDescent import GradientDescent
+from optimization.Penalty import ValidationErrorPenalty
 from sklearn import preprocessing
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
@@ -94,17 +95,9 @@ def define_problem(dataset, output_dir, logger):
 
     model = Model.from_fnc(model=external_input, fnc=net)
 
-    # objective function
+    # loss function
     loss_fnc = CrossEntropy(single_output=True)
-
     problem = SupervisedOptimizationProblem(model=model, loss_fnc=loss_fnc, batch_producer=dataset, batch_size=20)
-    # optimizer
-    optimizing_step = GradientDescent(lr=0.01)
-
-    algorithm = SimpleAlgorithm(problem=problem, optimization_step=optimizing_step)
-
-    # monitors
-    # grad_monitor = ScalarMonitor(name="grad_norm", variable=norm(algorithm.gradient, norm_type="l2"))
 
     # validation feed
     validation_batch = dataset.get_validation()
@@ -131,6 +124,14 @@ def define_problem(dataset, output_dir, logger):
     loss_tr_monitor = ScalarMonitor(name="Loss", logger=logger)
     loss_tr.register(loss_tr_monitor)
 
+    # penalty
+    penalty = ValidationErrorPenalty(freq=100, model=model, monitor=acc_val_monitor)
+    problem.add_penalty((1000, penalty))
+
+    # optimizer
+    optimizing_step = GradientDescent(lr=0.01)
+    algorithm = SimpleAlgorithm(problem=problem, optimization_step=optimizing_step)
+
     # saving criteria
     value_improved_criterion = ImprovedValueCriterion(monitor=acc_val_monitor, direction=">")
     checkpointer = CheckPointer(output_dir=output_dir, logger=logger, save_criterion=value_improved_criterion,
@@ -138,7 +139,7 @@ def define_problem(dataset, output_dir, logger):
 
     # training
     training = IterativeTraining(max_it=10 ** 6, algorithm=algorithm, output_dir=output_dir,
-                                 feed_dicts=[validation_feed], logger=logger, check_pointer=checkpointer)
+                                 feed_dicts=[validation_feed], logger=logger, check_pointer=checkpointer, freq=100)
 
     # iterative batch feed
     gradient_norm = PrimitiveQuantity(tf.norm(algorithm.gradient, ord=2), name="grad_norm",
@@ -146,15 +147,22 @@ def define_problem(dataset, output_dir, logger):
     loss_tr_monitor = ScalarMonitor(name="GradientNorm", logger=logger, format=":.2e")
     gradient_norm.register(loss_tr_monitor)
 
-    max_no_improve = MaxNoImproveCriterion(max_no_improve=200, direction="<", monitor=acc_val_monitor, logger=logger)
+    max_no_improve = MaxNoImproveCriterion(max_no_improve=10000, direction="<", monitor=acc_val_monitor, logger=logger)
     training.set_stop_criterion(max_no_improve)
+
+    # penalty monitors
+    penalty_it = PrimitiveQuantity(penalty.value_tf, name="penalty", feed=training.iterative_feed)
+    # penalty_it = PrimitiveQuantity(tf.norm(algorithm.gradient, 2), name="grad", feed=training.iterative_feed)
+
+    penalty_monitor = ScalarMonitor(name="penalty", logger=logger, format=":.3e")
+    penalty_it.register(penalty_monitor)
 
     return training, model
 
 
 if __name__ == "__main__":
     # Data sets
-    dataset = ExplDataset(seed=12, n_feats=10, n_samples=100000, n_informative=3)
+    dataset = ExplDataset(seed=12, n_feats=100, n_samples=1000, n_informative=3)
 
     output_dir = "/home/galvan/tensorBoards/expl/"
     logger = start_logger(log_dir=output_dir, log_file="train.log")

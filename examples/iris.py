@@ -157,7 +157,7 @@ if __name__ == "__main__":
     csv_path = "./examples/"
     dataset = IrisDataset(csv_path=csv_path, seed=12)
 
-    output_dir = "/home/giulio/tensorBoards/iris/"
+    output_dir = "/home/galvan/tensorBoards/iris/"
     logger = start_logger(log_dir=output_dir, log_file="iris_train.log")
 
     training, model = define_problem(dataset, output_dir, logger)
