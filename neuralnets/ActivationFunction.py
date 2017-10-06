@@ -37,3 +37,11 @@ class SoftmaxActivationFunction(ActivationFunction):
             return y
         else:
             return tf.nn.softmax(x)
+
+
+class SELU(ActivationFunction):
+    alpha = 1.6732632423543772848170429916717
+    scale = 1.0507009873554804934193349852946
+
+    def apply(self, x: tf.Tensor):
+        return SELU.scale * tf.where(x >= 0.0, x, SELU.alpha * tf.nn.elu(x))
