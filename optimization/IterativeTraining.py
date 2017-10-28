@@ -50,8 +50,6 @@ class IterativeTraining:
                  check_pointer: CheckPointer = None, freq: int = 100):
         self.__max_it = max_it
         self.__algorithm = algorithm
-        self.__output_dir = output_dir + "/"
-        self.__log_filename = self.__output_dir + 'train.log'
         self.__feed_dicts = feed_dicts
         self.__stop_criterion = NullCriterion()
         self.__save_criterion = NullCriterion()
