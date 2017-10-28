@@ -36,5 +36,3 @@ class Estimator:
         tf.reset_default_graph()
         return predictions
 
-        # def __del__(self):
-        #     self.__sess.close()

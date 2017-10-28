@@ -1,12 +1,12 @@
 from logging import Logger
 
-from monitors.Criteria import Criterion
-from monitors.Quantity import Observer
+from neuralflow.monitors.Criteria import Criterion
+from neuralflow.monitors.Quantity import Observer
 import tensorflow as tf
 import time
 import os
 
-from optimization.Algorithm import Algorithm
+from neuralflow.optimization.Algorithm import Algorithm
 
 
 class CheckPointer(Observer):

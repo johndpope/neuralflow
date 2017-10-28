@@ -1,9 +1,9 @@
 import abc
 from typing import List
 import tensorflow as tf
-from math_utils import merge_all_tensors
-from models import Model
-from monitors.Quantity import Observer, AbstractScalarMonitor
+from neuralflow.math_utils import merge_all_tensors
+from neuralflow.models import Model
+from neuralflow.monitors.Quantity import Observer, AbstractScalarMonitor
 import numpy as np
 
 

@@ -103,7 +103,7 @@ def define_problem(dataset, output_dir, logger):
 
     # penalty
     p = NormPenalty(quantities_tf=model.trainables)
-    penalty = (1.1, p)
+    penalty = (0, p)
 
     # problem
     problem = SupervisedOptimizationProblem(model=model, loss_fnc=loss_fnc, batch_producer=dataset, batch_size=20,

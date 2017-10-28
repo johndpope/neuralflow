@@ -2,7 +2,7 @@ import abc
 from logging import Logger
 from typing import Tuple
 
-from monitors.Quantity import Observer, AbstractScalarMonitor, Quantity, QuantityImpl, updated_event_dict, print_event, \
+from neuralflow.monitors.Quantity import Observer, AbstractScalarMonitor, Quantity, QuantityImpl, updated_event_dict, print_event, \
     ConcreteQuantity
 import tensorflow as tf
 import numpy as np

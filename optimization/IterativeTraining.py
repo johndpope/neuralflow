@@ -4,9 +4,9 @@ import tensorflow as tf
 import time
 from typing import List, Dict
 
-from monitors import CheckPointer
-from monitors.Criteria import Criterion, NullCriterion
-from monitors.Quantity import ExternalFeed, Feed
+from neuralflow.monitors import CheckPointer
+from neuralflow.monitors.Criteria import Criterion, NullCriterion
+from neuralflow.monitors.Quantity import ExternalFeed, Feed
 from neuralflow.optimization.Algorithm import Algorithm
 
 
