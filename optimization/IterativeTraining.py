@@ -17,6 +17,7 @@ class IterativeFeed(Feed):  # fixme duplicate code
         self.__output_dir = output_dir
         self.__name = "TrainBatch"
         self.__writer = None
+        self.__write_to_disk = False  # FIXME mettere nel costruttore + capire perchè a lungo andare dà errore
         self.__logger = logger
 
     def add_quantity(self, quantity):
@@ -24,7 +25,7 @@ class IterativeFeed(Feed):  # fixme duplicate code
 
     def feed(self, sess: tf.Session, iteration: int, train_op, feed_dict: Dict):
         """executes the train operation alongside the registered quantities and start the notify process"""
-        if not self.__writer:
+        if not self.__writer and self.__write_to_disk:
             self.__writer = tf.summary.FileWriter(self.__output_dir + self.__name, sess.graph)
 
         if iteration % self.__freq == 0:

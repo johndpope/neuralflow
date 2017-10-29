@@ -43,12 +43,13 @@ class ExternalFeed(Feed):
         self.__name = name
 
         self.__writer = None
+        self.__write_to_disk = False  # FIXME mettere nel costruttore + capire perchè a lungo andare dà errore
 
     def add_quantity(self, quantity):
         self.__quantities.append(quantity)
 
     def feed(self, sess: tf.Session, iteration: int):
-        if not self.__writer:
+        if not self.__writer and self.__write_to_disk:
             self.__writer = tf.summary.FileWriter(self.__output_dir + self.__name, sess.graph)
 
         if iteration % self.__freq == 0:
@@ -73,7 +74,7 @@ class Observer:
 
     @abc.abstractmethod
     def compute_and_update(self, sess: tf.Session, event_dict: dict):
-        """updates itself and notifies every registered observer of the happened change""" # FIXME
+        """updates itself and notifies every registered observer of the happened change"""  # FIXME
 
 
 class Quantity(Observer):
@@ -148,8 +149,12 @@ class ScalarMonitorImpl(QuantityImpl):
         self.__value_np = event_dict["updated_value"]
 
         assign_op = self.__value_tf.assign(self.__value_np)
-        summary, _ = sess.run([self.__summary, assign_op])
-        event_dict["writer"].add_summary(summary, event_dict["iteration"])
+        writer = event_dict["writer"]
+        if writer is not None:
+            summary, _ = sess.run([self.__summary, assign_op])
+            writer.add_summary(summary, event_dict["iteration"])
+        else:
+            sess.run(assign_op)
 
         event_dict = updated_event_dict(new_name=self.__name, old_dict=event_dict)
         if self.__logger:
